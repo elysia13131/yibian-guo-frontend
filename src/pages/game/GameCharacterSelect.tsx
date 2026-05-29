@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { characterApi, CharacterResponse } from '../../api'
 
-type TabType = 'default' | 'my' | 'market' | 'borrowed'
+type TabType = 'default' | 'my' | 'borrowed'
 
 export default function GameCharacterSelect() {
   const navigate = useNavigate()
@@ -56,8 +56,6 @@ export default function GameCharacterSelect() {
   useEffect(() => {
     if (activeTab === 'borrowed') {
       fetchBorrowedTab()
-    } else if (activeTab === 'market') {
-      fetchPublicCharacters()
     } else {
       fetchCharacters()
     }
@@ -121,8 +119,7 @@ export default function GameCharacterSelect() {
       await characterApi.borrow(id)
       setVoiceSampleChar(null)
       setShowVoiceDialog(false)
-      if (activeTab === 'borrowed' || activeTab === 'market') {
-        if (activeTab === 'market') fetchPublicCharacters()
+      if (activeTab === 'borrowed') {
         fetchBorrowedTab()
       }
     } catch (err) {
@@ -158,8 +155,7 @@ export default function GameCharacterSelect() {
         alert('借阅成功！可在"借阅的角色"中查看')
       }
       setBorrowUid('')
-      if (activeTab === 'borrowed' || activeTab === 'market') {
-        if (activeTab === 'market') fetchPublicCharacters()
+      if (activeTab === 'borrowed') {
         fetchBorrowedTab()
       }
     } catch (err: any) {
@@ -172,7 +168,6 @@ export default function GameCharacterSelect() {
   const tabs: { key: TabType; label: string }[] = [
     { key: 'default', label: '默认角色' },
     { key: 'my', label: '我的角色' },
-    { key: 'market', label: '人才市场' },
     { key: 'borrowed', label: '借阅的角色' },
   ]
 
@@ -480,10 +475,9 @@ export default function GameCharacterSelect() {
                       去创建一个
                     </button>
                   )}
-                  {activeTab === 'market' && <p className="text-sm">暂时没有公开的角色</p>}
                 </div>
               ) : (
-                renderGrid(characters, activeTab === 'market')
+                renderGrid(characters, false)
               )}
             </>
           )}
