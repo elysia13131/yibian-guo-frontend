@@ -550,6 +550,15 @@ export default function GameCharacterCreate() {
         </div>
       </div>
       <TtsTutorial open={showTutorial} onClose={() => setShowTutorial(false)} />
+
+      {uploading && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white/90 rounded-2xl px-8 py-6 shadow-2xl flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-pink-300 border-t-pink-400 rounded-full animate-spin" />
+            <p className="text-pink-700 font-medium text-sm">保存角色中...</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
