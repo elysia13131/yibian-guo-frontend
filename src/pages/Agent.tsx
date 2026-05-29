@@ -36,7 +36,8 @@ const STAGE_LABELS: { id: string; label: string }[] = [
   { id: 'assembly', label: '结果汇编' },
 ]
 
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8080/ws'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws') + '/ws'
 
 const AGENT_NAME_MAP: Record<string, string> = {
   knowledge_agent: '知识管家',

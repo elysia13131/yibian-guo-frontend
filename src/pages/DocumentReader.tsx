@@ -1620,7 +1620,9 @@ export default function DocumentReaderPage() {
                     try {
                       setReparsing(true)
                       await api.post(`/api/v1/documents/${documentId}/reparse-somark?use_rule_parsing=${useRuleParsing}`)
-                      const ws = new WebSocket(`ws://localhost:8080/api/v1/documents/ws/${documentId}`)
+                      const base = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+                      const wsUrl = base.replace(/^http/, 'ws') + `/api/v1/documents/ws/${documentId}`
+                      const ws = new WebSocket(wsUrl)
                       ws.onmessage = (e) => {
                         const data = JSON.parse(e.data)
                         if (data.type === 'complete') {
