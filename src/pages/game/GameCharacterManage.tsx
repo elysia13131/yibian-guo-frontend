@@ -4,7 +4,7 @@ import { characterApi, CharacterResponse } from '../../api'
 import { useGameWebSocket } from '../../hooks/useGameWebSocket'
 import CharacterDetailModal from '../../components/CharacterDetailModal'
 
-type TabType = 'default' | 'my' | 'borrowed'
+type TabType = 'default' | 'my' | 'borrowed' | 'market'
 
 const GRADIENT_PRESETS = [
   'from-pink-200 via-rose-100 to-pink-100',
@@ -208,6 +208,8 @@ export default function GameCharacterManage() {
   const [borrowUid, setBorrowUid] = useState('')
   const [borrowLoading, setBorrowLoading] = useState(false)
   const [borrowError, setBorrowError] = useState('')
+  const [publicList, setPublicList] = useState<CharacterResponse[]>([])
+  const [marketSearchQuery, setMarketSearchQuery] = useState('')
   const [voiceSampleChar, setVoiceSampleChar] = useState<CharacterResponse | null>(null)
   const [showVoiceDialog, setShowVoiceDialog] = useState(false)
   const [showSpeakerInput, setShowSpeakerInput] = useState(false)
@@ -261,6 +263,8 @@ export default function GameCharacterManage() {
       fetchMyCharacters()
     } else if (activeTab === 'borrowed') {
       fetchBorrowedCharacters()
+    } else if (activeTab === 'market') {
+      fetchPublicCharacters()
     } else {
       fetchDefaultCharacters()
     }
@@ -297,6 +301,18 @@ export default function GameCharacterManage() {
       setBorrowedCharacters(res.characters || [])
     } catch {
       setBorrowedCharacters([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchPublicCharacters = async () => {
+    setLoading(true)
+    try {
+      const res = await characterApi.list('public')
+      setPublicList(res.characters || [])
+    } catch {
+      setPublicList([])
     } finally {
       setLoading(false)
     }
@@ -473,6 +489,16 @@ export default function GameCharacterManage() {
           >
             已借阅
           </button>
+          <button
+            onClick={() => setActiveTab('market')}
+            className={`flex-1 py-2 text-sm rounded-lg font-medium transition-all ${
+              activeTab === 'market'
+                ? 'bg-pink-400 text-white shadow-sm'
+                : 'text-pink-400 hover:text-pink-600'
+            }`}
+          >
+            人才市场
+          </button>
         </div>
 
         {loading ? (
@@ -481,7 +507,36 @@ export default function GameCharacterManage() {
           </div>
         ) : (
           <>
-            {activeTab === 'my' ? (
+            {activeTab === 'market' ? (
+              <>
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    value={marketSearchQuery}
+                    onChange={e => setMarketSearchQuery(e.target.value)}
+                    placeholder="搜索角色名称、UID、人设..."
+                    className="w-full px-4 py-2.5 bg-white/80 border border-pink-200 rounded-xl text-pink-700 text-sm placeholder-pink-300 focus:outline-none focus:border-pink-400 focus:ring-1 focus:ring-pink-300 transition-all"
+                  />
+                </div>
+                {publicList.length > 0 ? (
+                  (() => {
+                    const q = marketSearchQuery.trim().toLowerCase()
+                    const filtered = q
+                      ? publicList.filter(c =>
+                          c.name.toLowerCase().includes(q) ||
+                          c.uid.toLowerCase().includes(q) ||
+                          (c.prompt && c.prompt.toLowerCase().includes(q))
+                        )
+                      : publicList
+                    return filtered.length > 0
+                      ? renderCharGrid(filtered, false)
+                      : <p className="text-center py-16 text-pink-300">没有匹配的角色</p>
+                  })()
+                ) : (
+                  <p className="text-center py-16 text-pink-300">暂时没有公开的角色</p>
+                )}
+              </>
+            ) : activeTab === 'my' ? (
               renderCharGrid(myCharacters, true)
             ) : activeTab === 'borrowed' ? (
               renderCharGrid(borrowedCharacters, false, true)
