@@ -30,7 +30,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const TOKEN_KEY = 'token'
 const USER_KEY = 'user'
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(() => {

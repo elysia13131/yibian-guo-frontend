@@ -22,7 +22,7 @@ export function isNativePlatform(): boolean {
 
 
 function getApiBaseUrl(): string {
-  return import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+  return import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
 }
 
 

@@ -3,7 +3,7 @@ import { api } from '../api'
 import type { FileArtifact } from '../components/ArtifactsPanel'
 import type { ChartImage } from '../components/ChartGrid'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
 const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws') + '/ws'
 
 const STORAGE_KEY = 'normal-chat-sessions'

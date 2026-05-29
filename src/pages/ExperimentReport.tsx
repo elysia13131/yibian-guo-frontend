@@ -107,7 +107,7 @@ export default function ExperimentReport() {
     if (!token) return
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
     const wsHost = apiUrl.replace(/^https?:\/\//, '')
     const wsUrl = `${protocol}//${wsHost}/api/v1/experiments/ws/${id}`
 
@@ -511,7 +511,7 @@ export default function ExperimentReport() {
     setStreaming(true)
 
     const token = localStorage.getItem('token')
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
     let accumulated = ''
     let streamOk = false
     const mergeKB = (prevKb: any, incKb: any) => {
@@ -611,7 +611,7 @@ export default function ExperimentReport() {
   const handleExport = async (fmt: string) => {
     try {
       const token = localStorage.getItem('token')
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
       const resp = await fetch(`${API_BASE_URL}/api/v1/experiments/${activeReport.id}/export/${fmt}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -1174,7 +1174,7 @@ export default function ExperimentReport() {
                 <button
                   onClick={async () => {
                     const token = localStorage.getItem('token')
-                    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+                    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
                     try {
                       const resp = await fetch(`${API_BASE_URL}/api/v1/experiments/${activeReport.id}/finalize`, {
                         method: 'POST',

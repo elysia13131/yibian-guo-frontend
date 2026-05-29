@@ -347,7 +347,7 @@ export default function DocumentReaderPage() {
         parts.push(
           <div key={`${type}-${keyIndex}`} className="my-4 overflow-x-auto">
             <img
-              src={`${import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'}/${imgPath}`}
+              src={`${import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'}/${imgPath}`}
               alt={altText}
               className="max-w-full h-auto border border-gray-300 dark:border-gray-600 rounded-lg"
               onError={(e) => {
@@ -1620,7 +1620,7 @@ export default function DocumentReaderPage() {
                     try {
                       setReparsing(true)
                       await api.post(`/api/v1/documents/${documentId}/reparse-somark?use_rule_parsing=${useRuleParsing}`)
-                      const base = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+                      const base = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
                       const wsUrl = base.replace(/^http/, 'ws') + `/api/v1/documents/ws/${documentId}`
                       const ws = new WebSocket(wsUrl)
                       ws.onmessage = (e) => {

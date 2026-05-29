@@ -39,7 +39,7 @@ export function useGameWebSocket(options: UseGameWSOptions = {}) {
     }
 
     try {
-      const WS_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/^http/, 'ws') || 'wss://ybg.preview.aliyun-zeabur.cn'
+      const WS_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/^http/, 'ws') || 'wss://yibianguo.preview.aliyun-zeabur.cn'
       const ws = new WebSocket(`${WS_BASE_URL}/api/v1/ws/game/${user.id}`)
 
       ws.onopen = () => {

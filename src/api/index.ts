@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
 
 function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
@@ -405,7 +405,7 @@ export const gameApi = {
     },
 
     getBgmUrl(filename: string): string {
-        const base = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+        const base = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
         return `${base}/api/v1/game/bgm/${filename}`
     }
 }
@@ -428,7 +428,7 @@ export const ttsApi = {
         }
 
         const response = await fetch(
-            `${import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'}/api/v1/tts/synthesize`,
+            `${import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'}/api/v1/tts/synthesize`,
             {
                 method: 'POST',
                 headers,
@@ -448,7 +448,7 @@ export const ttsApi = {
     },
 
     getAudioUrl(filename: string): string {
-        const base = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+        const base = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
         return `${base}/api/v1/tts/audio/${filename}`
     },
 

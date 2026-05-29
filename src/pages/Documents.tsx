@@ -210,7 +210,7 @@ export default function DocumentsPage() {
       
       if (shouldConnect) {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-        const apiUrl = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+        const apiUrl = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
         const wsHost = apiUrl.replace(/^https?:\/\//, '')
         const wsUrl = `${protocol}//${wsHost}/api/v1/documents/ws/${doc.id}`
         console.log('🔌 连接WebSocket:', wsUrl)

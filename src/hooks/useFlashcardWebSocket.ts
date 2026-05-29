@@ -50,7 +50,7 @@ export function useFlashcardWebSocket(options: UseWebSocketOptions = {}) {
     }
 
     try {
-      const WS_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/^http/, 'ws') || 'wss://ybg.preview.aliyun-zeabur.cn'
+      const WS_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/^http/, 'ws') || 'wss://yibianguo.preview.aliyun-zeabur.cn'
       console.log(`Connecting to WebSocket: ${WS_BASE_URL}/ws/flashcards/${user.id}`)
       const ws = new WebSocket(`${WS_BASE_URL}/ws/flashcards/${user.id}`)
 

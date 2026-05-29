@@ -4,7 +4,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowLeft, MailCheck } from 'lucide-react'
 import { motion } from 'motion/react'
 import PageTransition from '../components/PageTransition'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate()

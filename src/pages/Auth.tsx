@@ -43,7 +43,7 @@ export default function AuthPage() {
     setError('')
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://ybg.preview.aliyun-zeabur.cn'}/api/v1/email/send-code`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'}/api/v1/email/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
