@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core'
 import JSZip from 'jszip'
 
 const GITHUB_OWNER = 'elysia13131'
-const GITHUB_REPO = 'yi-bian-guo'
+const GITHUB_REPO = 'yibian-guo-frontend'
 
 export interface ManifestFile {
   sha256: string
