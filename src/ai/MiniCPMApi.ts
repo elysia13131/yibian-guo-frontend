@@ -2,6 +2,7 @@ const MINICPM_API_KEY = 'sk-pQ8L2zF3XmR5kY9wV4jB7hN1tC6vM0xG3aD5sH2bJ9lK4cZ8'
 const MINICPM_BASE_URL = '/api/modelbest'
 const MINICPM_MODEL = 'MiniCPM-V-4.6-Thinking'
 const MINICPM_MODEL_INSTRUCT = 'MiniCPM-V-4.6-Instruct'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
 
 const IMAGE_FORMATS = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 
@@ -49,7 +50,7 @@ export class MiniCPMApi {
       stream: true,
     }
 
-    const response = await fetch(`${MINICPM_BASE_URL}/chat/completions`, {
+    const response = await fetch(`${API_BASE_URL}${MINICPM_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${MINICPM_API_KEY}`,
@@ -148,7 +149,7 @@ export class MiniCPMApi {
     messages.push({ role: 'user', content: userContent })
 
     const token = localStorage.getItem('token')
-    const response = await fetch(`/api/v1/ai/tool-chat-stream`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/ai/tool-chat-stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -286,169 +287,6 @@ export class MiniCPMApi {
       return { description, source: 'api' }
     } finally {
       clearTimeout(timeoutId)
-    }
-  }
-
-  async understandVideo(
-    file: File,
-    prompt?: string
-  ): Promise<{ description: string; source: string }> {
-    const url = URL.createObjectURL(file)
-    const video = document.createElement('video')
-    video.src = url
-    video.muted = true
-    video.playsInline = true
-    video.crossOrigin = 'anonymous'
-
-    try {
-      await video.play()
-      const duration = video.duration || 10
-
-      // 方案 A: 动态帧数 — 按视频时长决定采样密度
-      let targetCount: number
-      if (duration < 5) targetCount = 4
-      else if (duration <= 30) targetCount = 8
-      else targetCount = 16
-
-      // 方案 C: 先密集采样候选帧，检测帧间差异，优先保留场景切换帧
-      const candidateCount = Math.min(32, Math.max(targetCount * 2, 12))
-      const candidateTimes: number[] = []
-      for (let i = 0; i < candidateCount; i++) {
-        candidateTimes.push((duration * (i + 0.5)) / candidateCount)
-      }
-
-      const fullCanvas = document.createElement('canvas')
-      fullCanvas.width = video.videoWidth || 1280
-      fullCanvas.height = video.videoHeight || 720
-      const fullCtx = fullCanvas.getContext('2d')!
-
-      const thumbCanvas = document.createElement('canvas')
-      thumbCanvas.width = 64
-      thumbCanvas.height = 36
-      const thumbCtx = thumbCanvas.getContext('2d')!
-
-      interface FrameCandidate {
-        timestamp: number
-        b64: string
-        pixels?: Uint8ClampedArray
-      }
-      const candidates: FrameCandidate[] = []
-
-      for (let i = 0; i < candidateTimes.length; i++) {
-        video.currentTime = candidateTimes[i]
-        await new Promise<void>((resolve) => {
-          video.addEventListener('seeked', () => resolve(), { once: true })
-          setTimeout(() => resolve(), 300)
-        })
-
-        fullCtx.drawImage(video, 0, 0)
-        const blob = await new Promise<Blob | null>((r) => fullCanvas.toBlob(r, 'image/jpeg', 0.8))
-        if (!blob) continue
-
-        const buf = await blob.arrayBuffer()
-        thumbCtx.drawImage(video, 0, 0, 64, 36)
-        candidates.push({
-          timestamp: candidateTimes[i],
-          b64: this.arrayBufferToBase64(buf),
-          pixels: i > 0 ? new Uint8ClampedArray(thumbCtx.getImageData(0, 0, 64, 36).data) : undefined,
-        })
-      }
-
-      URL.revokeObjectURL(url)
-
-      if (candidates.length < 2) {
-        return { description: '(视频帧提取失败)', source: 'api' }
-      }
-
-      // 计算帧间差异（像素级灰度变化）
-      const diffs: number[] = [0]
-      for (let i = 1; i < candidates.length; i++) {
-        const prev = candidates[i - 1].pixels
-        const curr = candidates[i].pixels
-        let diff = 0
-        if (prev && curr) {
-          for (let j = 0; j < prev.length; j++) {
-            diff += Math.abs(prev[j] - curr[j])
-          }
-          diff /= prev.length
-        }
-        diffs.push(diff)
-      }
-      for (const c of candidates) delete c.pixels
-
-      // 贪婪选择：固定首帧，优先选帧间差异大的位置，同时满足最小间距约束
-      const selected: FrameCandidate[] = [candidates[0]]
-      const remaining = candidates.slice(1, -1).map((c, i) => ({
-        frame: c,
-        score: diffs[i + 1],
-        idx: i + 1,
-      }))
-      remaining.sort((a, b) => b.score - a.score)
-
-      let spacing = duration / (targetCount + 1)
-      for (const item of remaining) {
-        if (selected.length >= targetCount) break
-        if (selected.some(s => Math.abs(s.timestamp - item.frame.timestamp) < spacing)) continue
-        selected.push(item.frame)
-      }
-
-      // 如果间距约束太严格导致帧数不够，放宽间距重试
-      if (selected.length < Math.min(targetCount, candidates.length)) {
-        spacing = duration / (targetCount * 2)
-        selected.length = 1
-        for (const item of remaining) {
-          if (selected.length >= targetCount) break
-          if (selected.some(s => Math.abs(s.timestamp - item.frame.timestamp) < spacing)) continue
-          selected.push(item.frame)
-        }
-      }
-
-      // 保证最后一帧也有机会入选
-      const last = candidates[candidates.length - 1]
-      if (selected.length < targetCount && !selected.includes(last) &&
-          Math.abs(last.timestamp - selected[selected.length - 1].timestamp) >= spacing) {
-        selected.push(last)
-      }
-
-      selected.sort((a, b) => a.timestamp - b.timestamp)
-
-      const userPrompt = prompt || '这些是同一段视频在不同时间的截图，请描述这段视频的内容、场景变化和关键事件。'
-      const content: any[] = [
-        ...selected.map(f => ({
-          type: 'image_url' as const,
-          image_url: { url: `data:image/jpeg;base64,${f.b64}` },
-        })),
-        { type: 'text' as const, text: userPrompt },
-      ]
-
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 120000)
-
-      try {
-        const response = await fetch(`${MINICPM_BASE_URL}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${MINICPM_API_KEY}`,
-            'Content-Type': 'application/json',
-            'Accept-Encoding': 'identity',
-          },
-          body: JSON.stringify({ model: MINICPM_MODEL, messages: [{ role: 'user', content }], stream: false }),
-          signal: controller.signal,
-        })
-
-        if (!response.ok) {
-          const errBody = await response.text().catch(() => '')
-          throw new Error(`MiniCPM video understand error: ${response.status} ${errBody.slice(0, 200)}`)
-        }
-
-        const result = await response.json()
-        return { description: result.choices?.[0]?.message?.content || '', source: 'api' }
-      } finally {
-        clearTimeout(timeoutId)
-      }
-    } catch (err) {
-      URL.revokeObjectURL(url)
-      throw err
     }
   }
 

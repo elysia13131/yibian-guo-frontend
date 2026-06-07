@@ -28,6 +28,8 @@ import BottomNav from './components/BottomNav'
 import LoginPrompt from './components/LoginPrompt'
 import UpdatePrompt from './components/UpdatePrompt'
 import LandingPage from './pages/LandingPage'
+import DocumentGraph from './pages/DocumentGraph'
+import KnowledgeGraphPage from './pages/KnowledgeGraphPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,7 +65,7 @@ function AppContent() {
   const location = useLocation()
   const { isAuthenticated, loading } = useAuth()
   const isAuthRoute = ['/auth', '/register', '/reset-password'].includes(location.pathname)
-  const isFullPageRoute = ['/documents', '/documents/', '/game', '/game/', '/experiment', '/agent', '/landing', '/test'].some(path =>
+  const isFullPageRoute = ['/documents', '/documents/', '/document-graph', '/knowledge-graph', '/game', '/game/', '/experiment', '/agent', '/landing', '/test'].some(path =>
     location.pathname.startsWith(path)
   )
 
@@ -100,6 +102,9 @@ function AppContent() {
           <Route path="/game/play/save/:saveId" element={<LoginPromptWrapper><GamePlay /></LoginPromptWrapper>} />
           <Route path="/game/play/:docId" element={<LoginPromptWrapper><GamePlay /></LoginPromptWrapper>} />
           <Route path="/game/saves" element={<LoginPromptWrapper><GameSaves /></LoginPromptWrapper>} />
+
+          <Route path="/document-graph" element={<LoginPromptWrapper><DocumentGraph /></LoginPromptWrapper>} />
+          <Route path="/knowledge-graph" element={<LoginPromptWrapper><KnowledgeGraphPage /></LoginPromptWrapper>} />
 
           <Route path="/landing" element={<LandingPage />} />
 

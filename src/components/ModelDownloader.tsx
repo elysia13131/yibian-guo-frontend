@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion } from 'motion/react'
 import {
   Download, Trash2, X, CheckCircle2, AlertCircle,
@@ -15,6 +15,7 @@ function ModelItem({ modelId }: ModelItemProps) {
   const [progress, setProgress] = useState<DownloadProgress | null>(null)
   const [error, setError] = useState('')
   const [storage, setStorage] = useState('')
+  const mountedRef = useRef(true)
 
   const model = modelManager.getAvailableModels().find(m => m.id === modelId)
 
@@ -22,25 +23,53 @@ function ModelItem({ modelId }: ModelItemProps) {
     if (!model) return
     ;(async () => {
       const downloaded = await modelManager.isDownloaded(modelId)
-      setState(downloaded ? 'done' : 'idle')
+      if (!mountedRef.current) return
+      if (downloaded) {
+        setState('done')
+      } else if (modelManager.isDownloading(modelId)) {
+        setState('downloading')
+        const p = modelManager.getCurrentProgress(modelId)
+        if (p) setProgress(p)
+      }
       const s = await modelManager.getTotalStorage()
-      setStorage(s)
+      if (mountedRef.current) setStorage(s)
     })()
   }, [model, modelId])
 
+  useEffect(() => {
+    if (state !== 'downloading') return
+    const timer = setInterval(() => {
+      const p = modelManager.getCurrentProgress(modelId)
+      if (p) setProgress(p)
+    }, 500)
+    return () => clearInterval(timer)
+  }, [state, modelId])
+
+  useEffect(() => {
+    return () => { mountedRef.current = false }
+  }, [])
+
   const handleDownload = useCallback(async () => {
     if (!model) return
+    if (modelManager.isDownloading(modelId)) {
+      const p = modelManager.getCurrentProgress(modelId)
+      if (p) setProgress(p)
+      setState('downloading')
+      return
+    }
     setState('downloading')
     setError('')
     try {
       await modelManager.downloadModel(modelId, (p: DownloadProgress) => {
-        setProgress(p)
+        if (mountedRef.current) setProgress(p)
       })
+      if (!mountedRef.current) return
       setState('done')
       setProgress(null)
       const s = await modelManager.getTotalStorage()
       setStorage(s)
     } catch (err: any) {
+      if (!mountedRef.current) return
       if (err?.message === '下载已取消') {
         setState('idle')
       } else {

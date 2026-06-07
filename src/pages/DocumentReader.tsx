@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type JSX } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, BookOpen, Menu, ArrowLeft, ChevronDown, ChevronRightIcon, Lightbulb, Sparkles, RefreshCw, Edit, Map as MapIcon, FileText, RefreshCw as RefreshIcon } from 'lucide-react'
+import SectionGraph from '../components/SectionGraph'
 import { useDocument, useChapters, useChapter, useUpdateLastReadChapter } from '../hooks/useDocuments'
 import { api, analyticsApi, documentsApi } from '../api'
 import { Markmap } from 'markmap-view'
@@ -342,7 +343,9 @@ export default function DocumentReaderPage() {
       }
 
       if (type === 'img' || type === 'tableImg') {
-        const imgPath = match[1]
+        let imgPath = match[1]
+        // 规范化路径分隔符（Windows 后端可能产生反斜杠）
+        imgPath = imgPath.replace(/\\/g, '/').replace(/^\.\//, '')
         const altText = type === 'tableImg' ? '表格图片' : '图片'
         parts.push(
           <div key={`${type}-${keyIndex}`} className="my-4 overflow-x-auto">
@@ -997,9 +1000,12 @@ export default function DocumentReaderPage() {
       console.log('知识点关联开始搜索:', chapter.title)
       try {
         const queryText = [chapter.title, chapter.content].filter(Boolean).join(' ').slice(0, 500)
-        const result = await api.get(`/api/v1/vector-db/search?query=${encodeURIComponent(queryText)}&n_results=20`) as any
+        const result = await api.get(`/api/v1/vector-db/search?query=${encodeURIComponent(queryText)}&n_results=20&category=question`) as any
         console.log('知识点关联搜索结果:', result)
-        if (!result.results || result.results.length === 0) {
+        if (result.results && result.results.length > 0) {
+          console.log('知识点关联: 第一个结果metadata:', result.results[0].metadata)
+          console.log('知识点关联: 所有结果category值:', result.results.map((r: any) => r.metadata?.category))
+        } else {
           console.log('知识点关联: 向量数据库中没有找到相关内容')
         }
         const analysisData = {
@@ -1603,6 +1609,13 @@ export default function DocumentReaderPage() {
                 <MapIcon size={16} className="inline mr-1" />
                 思维导图
               </button>
+              <Link
+                to={`/document-graph?docId=${documentId}`}
+                className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-1"
+              >
+                <MapIcon size={16} />
+                知识图谱
+              </Link>
             </div>
 
             <div className="flex flex-col items-center gap-1">
@@ -2009,6 +2022,7 @@ export default function DocumentReaderPage() {
                                             })()}
                                           </div>
                                         )}
+                                        <SectionGraph documentId={documentId.toString()} sectionId={displayContent[0].id?.toString() || ''} />
                                       </>
                                     )}
                                     {expandedAnalysis.has(displayContent[0].id) && (analysisCache.current.has(displayContent[0].id) || streamingAnalysis[displayContent[0].id] || streamingReasoning[displayContent[0].id]) && (
@@ -2143,6 +2157,7 @@ export default function DocumentReaderPage() {
                                             ))}
                                           </div>
                                         )}
+                                        <SectionGraph documentId={documentId.toString()} sectionId={chapter.id?.toString() || ''} />
                                       </>
                                     )}
                                     {expandedAnalysis.has(chapter.id) && (analysisCache.current.has(chapter.id) || streamingAnalysis[chapter.id] || streamingReasoning[chapter.id]) && (

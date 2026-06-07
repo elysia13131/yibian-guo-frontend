@@ -1,23 +1,49 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, useEffect } from 'react'
 import { ExternalLink } from 'lucide-react'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
+import 'katex/dist/contrib/mhchem'
+
+function MathFormula({ formula, displayMode }: { formula: string; displayMode?: boolean }) {
+  const ref = useRef<HTMLSpanElement | HTMLDivElement>(null)
+  useEffect(() => {
+    if (ref.current) {
+      try {
+        katex.render(formula, ref.current, { displayMode: displayMode ?? false, throwOnError: false })
+      } catch {
+        ref.current.textContent = formula
+      }
+    }
+  }, [formula, displayMode])
+  if (displayMode) {
+    return <div ref={ref as any} className="my-2 text-center" />
+  }
+  return <span ref={ref as any} className="inline-block align-middle" />
+}
 
 function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-function parseInline(text: string): (string | { type: 'bold' | 'code' | 'jump'; text: string; path?: string })[] {
-  const parts: (string | { type: 'bold' | 'code' | 'jump'; text: string; path?: string })[] = []
-  const regex = /(\*\*(.+?)\*\*)|(`[^`]+`)|(\[JUMP_TO:\s*([^\]]+)\]\s*(.+?)(?=\s|$))/g
+type InlinePart = string | { type: 'bold' | 'code' | 'math'; text: string; displayMode?: boolean } | { type: 'jump'; text: string; path: string }
+
+function parseInline(text: string): InlinePart[] {
+  const parts: InlinePart[] = []
+  const regex = /(\$\$(.+?)\$\$)|(\$(.+?)\$)|(\*\*(.+?)\*\*)|(`[^`]+`)|(\[JUMP_TO:\s*([^\]]+)\]\s*(.+?)(?=\s|$))/g
   let lastIndex = 0
   let match: RegExpExecArray | null
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index))
     if (match[1]) {
-      parts.push({ type: 'bold' as const, text: match[2] })
+      parts.push({ type: 'math' as const, text: match[2], displayMode: true })
     } else if (match[3]) {
-      parts.push({ type: 'code' as const, text: match[3].slice(1, -1) })
-    } else if (match[4]) {
-      parts.push({ type: 'jump' as const, text: match[6].trim(), path: match[5].trim() })
+      parts.push({ type: 'math' as const, text: match[4], displayMode: false })
+    } else if (match[5]) {
+      parts.push({ type: 'bold' as const, text: match[6] })
+    } else if (match[7]) {
+      parts.push({ type: 'code' as const, text: match[7].slice(1, -1) })
+    } else if (match[8]) {
+      parts.push({ type: 'jump' as const, text: match[11].trim(), path: match[10].trim() })
     }
     lastIndex = match.index + match[0].length
   }
@@ -40,6 +66,7 @@ function InlineContent({ text, navigate }: { text: string; navigate?: (path: str
         }
         if (p.type === 'bold') return <strong key={i}>{p.text}</strong>
         if (p.type === 'code') return <code key={i} className="px-1 py-0.5 rounded bg-stone-100 text-stone-800 text-xs font-mono border border-stone-200">{p.text}</code>
+        if (p.type === 'math') return <MathFormula key={i} formula={p.text} displayMode={p.displayMode} />
         if (p.type === 'jump' && navigate) {
           return (
             <button key={i} onClick={() => navigate(p.path!)}
@@ -69,6 +96,19 @@ export default function FormattedText({ content, navigate }: Props) {
     while (i < lines.length) {
       const line = lines[i]
 
+      // Display math block
+      if (line.trimStart().startsWith('$$')) {
+        const mathLines: string[] = []
+        i++
+        while (i < lines.length && !lines[i].trimStart().startsWith('$$')) {
+          mathLines.push(lines[i])
+          i++
+        }
+        i++
+        blocks.push({ type: 'math-block', content: mathLines })
+        continue
+      }
+
       // Code block
       if (line.trimStart().startsWith('```')) {
         const lang = line.trimStart().slice(3).trim()
@@ -78,7 +118,7 @@ export default function FormattedText({ content, navigate }: Props) {
           codeLines.push(lines[i])
           i++
         }
-        i++ // skip closing ```
+        i++
         blocks.push({ type: 'code', content: codeLines, lang: lang || undefined })
         continue
       }
@@ -155,6 +195,10 @@ export default function FormattedText({ content, navigate }: Props) {
               ))}
             </p>
           )
+        }
+        if (block.type === 'math-block') {
+          const formula = block.content.join('\n')
+          return <MathFormula key={bi} formula={formula} displayMode={true} />
         }
         if (block.type === 'h3') {
           return <h3 key={bi} className="text-base font-bold text-stone-800 mt-3 mb-1"><InlineContent text={block.content[0]} navigate={navigate} /></h3>

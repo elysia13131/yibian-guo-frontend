@@ -8,20 +8,11 @@ function getCacheKey(text: string, speakerId: string, encoding: string, speedRat
   return `${CACHE_PREFIX}${speakerId}|${text}|${encoding}|${speedRatio}`
 }
 
-function isNativePlatform(): boolean {
-  try {
-    const { Capacitor } = require('@capacitor/core')
-    return Capacitor.isNativePlatform()
-  } catch {
-    return false
-  }
-}
-
 async function fetchApiKeyFromBackend(): Promise<string | null> {
   try {
     const { authApi } = await import('../api')
     const user = await authApi.getCurrentUser()
-    return user.api_key || null
+    return user.tts_api_key || null
   } catch {
     return null
   }
@@ -73,10 +64,7 @@ export async function synthesizeTts(
     return new Blob([bytes], { type: `audio/${encoding === 'mp3' ? 'mpeg' : encoding}` })
   }
 
-  if (isNativePlatform()) {
-    return synthesizeDirect(text, speakerId, { encoding, speedRatio, cacheKey })
-  }
-  return synthesizeViaBackend(text, speakerId, { encoding, speedRatio, cacheKey })
+  return synthesizeDirect(text, speakerId, { encoding, speedRatio, cacheKey })
 }
 
 async function synthesizeDirect(
@@ -115,17 +103,6 @@ async function synthesizeDirect(
   }
 
   const blob = await response.blob()
-  cacheBlob(blob, options.cacheKey)
-  return blob
-}
-
-async function synthesizeViaBackend(
-  text: string,
-  speakerId: string,
-  options: { encoding: string; speedRatio: number; cacheKey: string },
-): Promise<Blob> {
-  const { ttsApi } = await import('../api')
-  const blob = await ttsApi.synthesize(text, speakerId, undefined, options.encoding, options.speedRatio)
   cacheBlob(blob, options.cacheKey)
   return blob
 }

@@ -241,8 +241,6 @@ export default function ArtifactsPanel({
                       <img src={item.url} alt={item.title} className="w-full h-full object-contain p-0.5" onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23f5f5f5" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%23ccc" font-size="10">加载失败</text></svg>' }} />
                     ) : item.kind === 'file' && item.type === 'image' && (item.path?.startsWith('http') || item.path?.startsWith('/')) ? (
                       <img src={item.path} alt={item.title} className="w-full h-full object-contain p-0.5" onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23f5f5f5" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%23ccc" font-size="10">加载失败</text></svg>' }} />
-                    ) : item.kind === 'file' && item.type === 'video' && (item.path?.startsWith('http') || item.path?.startsWith('/')) ? (
-                      <video src={item.path} className="w-full h-full object-contain p-0.5" muted />
                     ) : (
                       <FileText className="w-4 h-4 text-stone-400" />
                     )}

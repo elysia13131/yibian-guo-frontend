@@ -6,6 +6,7 @@ import { useDocuments, useUploadDocument, useDeleteDocument, useCategories, useT
 import { analyticsApi } from '../api'
 import type { DocumentStatus } from '../types'
 import PageTransition from '../components/PageTransition'
+import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera'
 
 interface UploadProgress {
     documentId: number
@@ -67,7 +68,6 @@ export default function DocumentsPage() {
     const [optimisticDocuments, setOptimisticDocuments] = useState<any[]>([])
     const wsRef = useRef<Map<number, WebSocket>>(new Map())
     const photoInputRef = useRef<HTMLInputElement>(null)
-    const cameraInputRef = useRef<HTMLInputElement>(null)
     const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; docId: number }>({
         show: false,
         docId: 0
@@ -353,8 +353,14 @@ export default function DocumentsPage() {
             tempIdToRealIdRef.current.set(tempId, data.document_id)
           }
         },
-        onError: (error) => {
+        onError: (error: any) => {
           console.error('上传失败:', error)
+          // 公共文档去重提示
+          if (error?.response?.status === 409) {
+            alert(error?.response?.data?.detail || '该文档已作为公共文档存在，不能重复上传为公开文档')
+          } else if (error?.response?.data?.detail) {
+            alert(error.response.data.detail)
+          }
           // 上传失败，移除乐观文档和进度
           if (progressIntervalsRef.current.has(tempId)) {
             clearInterval(progressIntervalsRef.current.get(tempId)!)
@@ -388,6 +394,31 @@ export default function DocumentsPage() {
     }
     setPhotos(prev => [...prev, ...valid])
     e.target.value = ''
+  }
+
+  const handleCameraCapture = async () => {
+    try {
+      const photo = await CapacitorCamera.getPhoto({
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Camera,
+        quality: 90,
+      })
+      if (!photo.webPath) return
+      const response = await fetch(photo.webPath)
+      const blob = await response.blob()
+      const fileName = photo.path?.split('/').pop() || `photo_${Date.now()}.jpg`
+      const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' })
+      if (photos.length >= 300) return
+      setPhotos(prev => [...prev, {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file,
+        preview: URL.createObjectURL(file),
+      }])
+    } catch (err: any) {
+      if (err.message !== 'User cancelled photos app') {
+        console.error('Camera capture error:', err)
+      }
+    }
   }
 
   const removePhoto = (id: string) => {
@@ -768,14 +799,6 @@ export default function DocumentsPage() {
                     </div>
 
                     <input
-                      ref={cameraInputRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={handlePhotoSelect}
-                      className="hidden"
-                    />
-                    <input
                       ref={photoInputRef}
                       type="file"
                       accept="image/*"
@@ -787,7 +810,7 @@ export default function DocumentsPage() {
                     {photos.length === 0 ? (
                       <div className="grid grid-cols-2 gap-2">
                         <button
-                          onClick={() => cameraInputRef.current?.click()}
+                          onClick={handleCameraCapture}
                           className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
                         >
                           <Camera size={28} className="mx-auto text-gray-400 dark:text-gray-500" />
@@ -815,7 +838,7 @@ export default function DocumentsPage() {
                         ))}
                         <div className="flex gap-2">
                           <button
-                            onClick={() => cameraInputRef.current?.click()}
+                            onClick={handleCameraCapture}
                             className="flex-1 py-2 text-xs text-emerald-500 hover:text-emerald-600 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg transition-colors flex items-center justify-center gap-1"
                           >
                             <Camera className="w-3.5 h-3.5" />
@@ -882,6 +905,13 @@ export default function DocumentsPage() {
                     公开文档（其他用户可见）
                   </label>
                 </div>
+                {isPublic && (
+                  <div className="mt-2 pl-6 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                    <p>• 公开文档参与全站知识图谱合并，知识关联更丰富</p>
+                    <p>• 文档内容仅限系统提取的知识点，不在知识图谱中显示原文</p>
+                    <p>• 私密文档的知识图谱仅自己可见，不影响全站图谱</p>
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-4">
                   <button

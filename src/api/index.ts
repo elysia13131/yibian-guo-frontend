@@ -179,6 +179,7 @@ export interface UserInfo {
   is_verified: boolean
   player_title: string
   api_key?: string
+  tts_api_key?: string
   deepseek_api_key?: string
   somark_api_key?: string
   created_at: string
@@ -224,7 +225,7 @@ export const authApi = {
     return api.post('/api/v1/auth/reset-password', data)
   },
 
-  async updateSettings(settings: { player_title: string; api_key?: string }): Promise<UserInfo> {
+  async updateSettings(settings: { player_title: string; api_key?: string; tts_api_key?: string; deepseek_api_key?: string; somark_api_key?: string }): Promise<UserInfo> {
     return api.put<UserInfo>('/api/v1/auth/me/settings', settings)
   }
 }

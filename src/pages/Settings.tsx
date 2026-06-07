@@ -18,11 +18,10 @@ const Settings = () => {
   const [saveHistory, setSaveHistory] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
   const [modelMode, setModelMode] = useState<'api' | 'local'>(() => (localStorage.getItem('agentModelMode') as 'api' | 'local') || 'api')
-  const [savingKeys, setSavingKeys] = useState(false)
-
   const [deepseekKey, setDeepseekKey] = useState('')
   const [somarkKey, setSomarkKey] = useState('')
   const [arkKey, setArkKey] = useState('')
+  const [savingKeys, setSavingKeys] = useState(false)
 
   useEffect(() => {
     calculateCacheSize()
@@ -69,9 +68,9 @@ const Settings = () => {
     try {
       await api.put('/api/v1/auth/me/settings', {
         player_title: user?.player_title || '同学',
-        api_key: arkKey || null,
-        deepseek_api_key: deepseekKey || null,
-        somark_api_key: somarkKey || null,
+        api_key: arkKey,
+        deepseek_api_key: deepseekKey,
+        somark_api_key: somarkKey,
       })
       await checkAuth()
       alert('API Key 已保存')
@@ -164,6 +163,8 @@ const Settings = () => {
               <div>
                 <h3 className="font-semibold text-gray-800">API Key 管理</h3>
                 <p className="text-sm text-gray-500">填写你自己的 API Key 以使用 AI 功能</p>
+                <p className="text-xs text-amber-600/90 mt-0.5">由于 AI 限制，暂时需要配置 DeepSeek 以及火山引擎 API，后续将增加完全免费的多模态 AI 模型</p>
+                <p className="text-xs text-green-600/90">公共 API 即将上线</p>
               </div>
             </div>
             <span className={`transition-transform duration-200 ${apiKeyPanelOpen ? 'rotate-90' : ''} text-gray-600`}>›</span>

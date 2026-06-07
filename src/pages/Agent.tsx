@@ -59,7 +59,7 @@ interface PendingAttachment {
   file: File
   previewUrl: string
   imageData?: ArrayBuffer
-  type: 'image' | 'video' | 'document'
+  type: 'image' | 'document'
   name: string
   status: 'pending' | 'processing' | 'done' | 'error'
   parsedContent?: string
@@ -140,13 +140,7 @@ const Agent = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
   const attachMenuRef = useRef<HTMLDivElement>(null)
-  const [showCamera, setShowCamera] = useState(false)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const cameraStreamRef = useRef<MediaStream | null>(null)
-  const [cameraMode, setCameraMode] = useState<'photo' | 'video'>('photo')
-  const [isRecording, setIsRecording] = useState(false)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const recordedChunksRef = useRef<Blob[]>([])
+
 
   const [historyVisible, setHistoryVisible] = useState(false)
 
@@ -521,7 +515,16 @@ const Agent = () => {
     if (!text.trim()) return
     const uid = nextId('u')
     setInput('')
-    const userFiles = attachments?.map(a => ({ name: a.name, type: 'image', url: a.imageUrl }))
+    // 将 blob URL 转为 data URL，避免 APK 更新/页面刷新后预览丢失
+    const userFiles = attachments?.map(a => {
+      const ext = a.name.split('.').pop()?.toLowerCase() || 'png'
+      const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' }
+      const mime = mimeMap[ext] || 'image/png'
+      const bytes = new Uint8Array(a.imageData)
+      let binary = ''
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      return { name: a.name, type: 'image', url: `data:${mime};base64,${btoa(binary)}` }
+    })
     const userMsg: Message = { id: uid, role: 'user', content: text, files: userFiles }
     const streamPlaceholderId = `stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
     streamingMsgIdRef.current = streamPlaceholderId
@@ -556,6 +559,7 @@ const Agent = () => {
       let fullContent = ''
       let fullReasoning = ''
       let prefillDone = false
+      let rafPending = false
       const streamOwnerSessionId = currentSessionId
       setIsPrefilling(true)
       setStreamingContent('...')
@@ -567,7 +571,12 @@ const Agent = () => {
           prefillDone = true
           setIsPrefilling(false)
         }
-        setStreamingContent(fullContent)
+        if (rafPending) return
+        rafPending = true
+        requestAnimationFrame(() => {
+          rafPending = false
+          setStreamingContent(fullContent)
+        })
         if (streamingSessionIdRef.current !== streamOwnerSessionId) {
           const buf = streamBufferBySession.current
           if (!buf[streamOwnerSessionId!]) buf[streamOwnerSessionId!] = { content: '', messageIds: {} }
@@ -719,7 +728,7 @@ const Agent = () => {
   const handleSend = useCallback(() => {
     const text = input.trim()
 
-    if (!user?.deepseek_api_key) {
+    if (!user?.deepseek_api_key && chatMode !== 'normal') {
       showApiKeySetup(['deepseek'])
       return
     }
@@ -734,30 +743,7 @@ const Agent = () => {
         const attachments = pending
           .filter(a => a.type === 'image' && a.imageData)
           .map(a => ({ imageData: a.imageData!, imageUrl: a.previewUrl, name: a.name }))
-        const videoFiles = pending.filter(a => a.type === 'video')
-
-        if (videoFiles.length > 0) {
-          ;(async () => {
-            try {
-              setLoading(true)
-              let videoText = ''
-              for (const att of videoFiles) {
-                const modelMode = (localStorage.getItem('agentModelMode') || 'api') as 'api' | 'local'
-                const result = modelMode === 'api'
-                  ? await miniCPMApi.understandVideo(att.file, undefined)
-                  : await visionEngine.understandImage(att.file, undefined, '请详细描述这段视频的内容，包括画面中的场景、物体、人物、动作和关键事件等信息。')
-                videoText += `\n\n📹 ${att.name}:\n${result.description}`
-              }
-              const finalText = text ? `${text}\n\n---\n${videoText.trim()}` : videoText.trim()
-              handleNormalSend(finalText || '请分析上传的文件', attachments.length > 0 ? attachments : undefined)
-            } catch (err) {
-              console.error('处理视频失败:', err)
-              setLoading(false)
-            }
-          })()
-        } else {
-          handleNormalSend(text || '请分析上传的图片', attachments.length > 0 ? attachments : undefined)
-        }
+        handleNormalSend(text || '请分析上传的图片', attachments.length > 0 ? attachments : undefined)
       } else {
         handleNormalSend(text)
       }
@@ -775,7 +761,7 @@ const Agent = () => {
       const doneAttachments = pending.filter(a => a.status === 'done' && a.parsedContent)
       if (doneAttachments.length > 0) {
         const parts = doneAttachments.map((a, i) => {
-          const typeLabel = a.type === 'image' ? '📷 图片' : a.type === 'video' ? '🎬 视频' : '📄 文档'
+          const typeLabel = a.type === 'image' ? '📷 图片' : '📄 文档'
           return `【附件 ${i + 1}】[${typeLabel}] ${a.name}\n${a.parsedContent}`
         })
         attachmentsExtra = `\n\n---\n📎 附件内容（${doneAttachments.length}个）：\n${parts.join('\n\n---\n')}`
@@ -866,19 +852,18 @@ const Agent = () => {
     if (!items) return
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
-      if (item.type.startsWith('image/') || item.type.startsWith('video/')) {
+      if (item.type.startsWith('image/')) {
         e.preventDefault()
         const file = item.getAsFile()
         if (!file) continue
         const previewUrl = URL.createObjectURL(file)
-        const isImage = item.type.startsWith('image/')
         const att: PendingAttachment = {
           id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           file,
           previewUrl,
-          imageData: isImage ? await file.arrayBuffer() : undefined,
-          type: isImage ? 'image' : 'video',
-          name: file.name || (isImage ? 'clipboard.png' : 'clipboard.webm'),
+          imageData: await file.arrayBuffer(),
+          type: 'image',
+          name: file.name || 'clipboard.png',
           status: chatMode === 'collaboration' ? 'processing' : 'pending',
         }
         setPendingAttachments(prev => [...prev, att])
@@ -895,7 +880,6 @@ const Agent = () => {
     if (files.length === 0) return
 
     const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp']
-    const VIDEO_EXTS = ['mp4', 'mov', 'webm', 'avi', 'mkv']
     const DOC_EXTS = ['pdf', 'docx', 'pptx', 'ppt', 'txt', 'csv', 'md', 'xlsx', 'xls']
 
     const newAttachments: PendingAttachment[] = []
@@ -903,14 +887,13 @@ const Agent = () => {
     for (const file of files) {
       const ext = file.name.split('.').pop()?.toLowerCase() || ''
       const isImage = IMAGE_EXTS.includes(ext)
-      const isVideo = VIDEO_EXTS.includes(ext)
       const isDocument = DOC_EXTS.includes(ext)
 
       // Normal mode: skip documents
-      if (chatMode === 'normal' && !isImage && !isVideo) continue
+      if (chatMode === 'normal' && !isImage) continue
 
       const previewUrl = URL.createObjectURL(file)
-      const fileType: PendingAttachment['type'] = isImage ? 'image' : isVideo ? 'video' : 'document'
+      const fileType: PendingAttachment['type'] = isImage ? 'image' : 'document'
 
       const att: PendingAttachment = {
         id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -957,15 +940,6 @@ const Agent = () => {
           : await visionEngine.understandImage(att.file, undefined, visionPrompt)
         parsedContent = result.description
         console.log(`[Agent] Image parsed successfully: ${att.name}`)
-      } else if (att.type === 'video') {
-        const visionPrompt = '请详细描述这段视频的内容，包括画面中的场景、物体、人物、动作和关键事件等信息。'
-        const modelMode = (localStorage.getItem('agentModelMode') || 'api') as 'api' | 'local'
-        console.log(`[Agent] Parsing video: ${att.name}, mode: ${modelMode}`)
-        const result = modelMode === 'api'
-          ? await miniCPMApi.understandVideo(att.file, visionPrompt)
-          : await visionEngine.understandImage(att.file, undefined, visionPrompt)
-        parsedContent = result.description
-        console.log(`[Agent] Video parsed successfully: ${att.name}`)
       } else {
         const formData = new FormData()
         formData.append('file', att.file)
@@ -986,46 +960,29 @@ const Agent = () => {
     }
   }
 
-  const startCamera = useCallback(async () => {
+  const capturePhoto = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: cameraMode === 'video' })
-      cameraStreamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-      }
-    } catch (err) {
-      console.error('Camera access error:', err)
-    }
-  }, [cameraMode])
+      const { Camera, CameraResultType } = await import('@capacitor/camera')
+      const { Filesystem, Directory } = await import('@capacitor/filesystem')
+      const photo = await Camera.getPhoto({
+        resultType: CameraResultType.Uri,
+        quality: 90,
+      })
+      if (!photo.path) return
 
-  const stopCamera = useCallback(() => {
-    if (cameraStreamRef.current) {
-      cameraStreamRef.current.getTracks().forEach(t => t.stop())
-      cameraStreamRef.current = null
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
-    }
-    setIsRecording(false)
-    recordedChunksRef.current = []
-  }, [])
-
-  const capturePhoto = useCallback(() => {
-    const video = videoRef.current
-    if (!video) return
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth || 1280
-    canvas.height = video.videoHeight || 720
-    canvas.getContext('2d')!.drawImage(video, 0, 0)
-    canvas.toBlob(async (blob) => {
-      if (!blob) return
+      const base64 = await Filesystem.readFile({
+        path: photo.path,
+        directory: Directory.Cache,
+      })
       const timestamp = Date.now()
-      const file = new File([blob], `photo_${timestamp}.jpg`, { type: 'image/jpeg' })
+      const fileName = `photo_${timestamp}.${photo.format || 'jpeg'}`
+      const mimeType = photo.format === 'png' ? 'image/png' : 'image/jpeg'
+
+      const response = await fetch(`data:${mimeType};base64,${base64.data}`)
+      const blob = await response.blob()
+      const file = new File([blob], fileName, { type: mimeType })
       const previewUrl = URL.createObjectURL(file)
       const imageData = await file.arrayBuffer()
-      const ext = 'jpg'
-      const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp']
-      const isImage = IMAGE_EXTS.includes(ext)
       const att: PendingAttachment = {
         id: `cam-${timestamp}-${Math.random().toString(36).slice(2, 6)}`,
         file,
@@ -1039,55 +996,11 @@ const Agent = () => {
       if (chatMode === 'collaboration' && processAttachment) {
         processAttachment(att)
       }
-      stopCamera()
-      setShowCamera(false)
-    }, 'image/jpeg', 0.92)
-  }, [chatMode, stopCamera])
+    } catch (err: any) {
+    }
+  }, [chatMode])
 
-  const startRecording = useCallback(() => {
-    const stream = cameraStreamRef.current
-    if (!stream) return
-    recordedChunksRef.current = []
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-      ? 'video/webm;codecs=vp9,opus'
-      : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-        ? 'video/webm;codecs=vp8,opus'
-        : 'video/webm'
-    const recorder = new MediaRecorder(stream, { mimeType })
-    mediaRecorderRef.current = recorder
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) recordedChunksRef.current.push(e.data)
-    }
-    recorder.onstop = async () => {
-      const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' })
-      const timestamp = Date.now()
-      const file = new File([blob], `video_${timestamp}.webm`, { type: 'video/webm' })
-      const previewUrl = URL.createObjectURL(file)
-      const att: PendingAttachment = {
-        id: `cam-${timestamp}-${Math.random().toString(36).slice(2, 6)}`,
-        file,
-        previewUrl,
-        type: 'video',
-        name: file.name,
-        status: chatMode === 'collaboration' ? 'processing' : 'pending',
-      }
-      setPendingAttachments(prev => [...prev, att])
-      if (chatMode === 'collaboration' && processAttachment) {
-        processAttachment(att)
-      }
-      stopCamera()
-      setShowCamera(false)
-    }
-    recorder.start()
-    setIsRecording(true)
-  }, [chatMode, stopCamera])
 
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop()
-    }
-    setIsRecording(false)
-  }, [])
 
   const handleToolagentSend = useCallback((text: string) => {
     wsRef.current?.send(JSON.stringify({ action: 'toolagent_feedback', text }))
@@ -1099,7 +1012,6 @@ const Agent = () => {
   const artifactCount = chartImages.length + allFileArtifacts.length
   const suggestionItems = useMemo(() => [
     { icon: <Zap className="w-3.5 h-3.5" />, text: '帮我制定学习计划', color: 'border-amber-200/60 hover:border-amber-300/80' },
-    { icon: <Award className="w-3.5 h-3.5" />, text: '生成思维导图', color: 'border-emerald-200/60 hover:border-emerald-300/80' },
     { icon: <BookOpen className="w-3.5 h-3.5" />, text: '解释这个知识点', color: 'border-blue-200/60 hover:border-blue-300/80' },
     { icon: <ChartColumn className="w-3.5 h-3.5" />, text: '推荐高效复习策略', color: 'border-violet-200/60 hover:border-violet-300/80' },
   ], [])
@@ -1296,7 +1208,8 @@ const Agent = () => {
                               <img
                                 src={f.url}
                                 alt={f.name}
-                                className="w-20 h-20 rounded-lg object-cover border border-stone-200/50"
+                                className="w-20 h-20 rounded-lg object-cover border border-stone-200/50 cursor-pointer"
+                                onClick={() => setPreviewUrl(f.url)}
                               />
                               <span className="absolute bottom-0.5 left-0.5 text-[9px] bg-black/50 text-white px-1 rounded truncate max-w-[76px]">{f.name}</span>
                             </div>
@@ -1532,11 +1445,7 @@ const Agent = () => {
                   <img src={att.previewUrl} alt={att.name} className="w-20 h-20 object-cover" />
                 ) : (
                   <div className="w-20 h-20 flex flex-col items-center justify-center bg-stone-50 gap-1">
-                    {att.type === 'video' ? (
-                      <div className="w-6 h-6 rounded bg-stone-200 flex items-center justify-center text-[10px] text-stone-500">▶</div>
-                    ) : (
-                      <FileText className="w-5 h-5 text-stone-400" />
-                    )}
+                    <FileText className="w-5 h-5 text-stone-400" />
                     <span className="text-[8px] text-stone-400 truncate px-1 max-w-full">{att.name}</span>
                   </div>
                 )}
@@ -1603,7 +1512,7 @@ const Agent = () => {
                   <span>上传附件</span>
                 </button>
                 <button
-                  onClick={() => { startCamera(); setShowCamera(true); setShowAttachMenu(false) }}
+                  onClick={() => { capturePhoto(); setShowAttachMenu(false) }}
                   className="flex items-center gap-2.5 w-full px-3.5 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition-colors"
                 >
                   <Camera className="w-4 h-4 text-stone-400" />
@@ -1668,59 +1577,6 @@ const Agent = () => {
           />
         )}
       </AnimatePresence>
-
-      {/* Camera modal */}
-      {showCamera && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setShowCamera(false); stopCamera() }}>
-          <div className="relative bg-black rounded-2xl overflow-hidden shadow-2xl w-full max-w-lg max-h-[90vh] mx-4 flex flex-col" onClick={e => e.stopPropagation()}>
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full flex-1 min-h-0 object-cover bg-black"
-            />
-            <div className="absolute top-0 inset-x-0 flex items-center justify-between p-3 bg-gradient-to-b from-black/50 to-transparent z-10">
-              <button
-                onClick={() => { setShowCamera(false); stopCamera() }}
-                className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <div className="flex gap-1 bg-white/20 rounded-lg p-0.5">
-                <button
-                  onClick={() => setCameraMode('photo')}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors ${cameraMode === 'photo' ? 'bg-white text-black' : 'text-white'}`}
-                >
-                  拍照
-                </button>
-                <button
-                  onClick={() => setCameraMode('video')}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors ${cameraMode === 'video' ? 'bg-white text-black' : 'text-white'}`}
-                >
-                  录像
-                </button>
-              </div>
-              <div className="w-9" />
-            </div>
-            <div className="flex items-center justify-center p-4 bg-gradient-to-t from-black/50 to-transparent">
-              {cameraMode === 'photo' ? (
-                <button
-                  onClick={capturePhoto}
-                  className="w-14 h-14 rounded-full border-4 border-white bg-transparent hover:bg-white/20 transition-colors"
-                />
-              ) : (
-                <button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${isRecording ? 'bg-red-500' : 'border-4 border-white bg-transparent hover:bg-white/20'}`}
-                >
-                  {isRecording && <div className="w-4 h-4 bg-white rounded-sm" />}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Image preview lightbox */}
       {previewUrl && (

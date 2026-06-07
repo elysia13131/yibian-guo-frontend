@@ -1,8 +1,19 @@
 import { Capacitor } from '@capacitor/core'
 import JSZip from 'jszip'
 
-const GITHUB_OWNER = 'elysia13131'
-const GITHUB_REPO = 'yibian-guo-frontend'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
+
+function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = pa[i] || 0
+    const nb = pb[i] || 0
+    if (na > nb) return 1
+    if (na < nb) return -1
+  }
+  return 0
+}
 
 export interface ManifestFile {
   sha256: string
@@ -72,6 +83,16 @@ class UpdateManager {
       const { AppUpdate } = await import('../plugins/AppUpdate')
       const result = await AppUpdate.getCurrentVersion()
       this.currentVersion = result.version || '0.0.0'
+      if (this.currentVersion === '0.0.0') {
+        try {
+          const resp = await fetch('/manifest.json')
+          const manifest: UpdateManifest = await resp.json()
+          this.currentVersion = manifest.version || '0.0.0'
+          await AppUpdate.setCurrentVersion({ version: this.currentVersion })
+        } catch {
+          /* manifest.json not bundled, keep 0.0.0 */
+        }
+      }
     } catch {
       this.currentVersion = '0.0.0'
     }
@@ -85,54 +106,19 @@ class UpdateManager {
     this.setState('checking')
 
     try {
-      const response = await fetch(
-        `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
-        { headers: { Accept: 'application/vnd.github.v3+json' } }
-      )
+      this.zipDownloadUrl = `${API_BASE_URL}/update/www.zip`
 
-      if (!response.ok) {
+      const manifestResp = await fetch(`${API_BASE_URL}/update/manifest.json`)
+      if (!manifestResp.ok) {
         this.setState('idle')
         return { hasUpdate: false, latestVersion: '', currentVersion: this.currentVersion, changedFiles: 0, totalSize: 0, manifest: null }
       }
 
-      const release = await response.json()
-      const latestVersion = release.tag_name.replace(/^v/, '')
-
-      const manifestAsset = release.assets.find((a: any) => a.name === 'manifest.json')
-      if (!manifestAsset) {
-        this.setState('idle')
-        return { hasUpdate: false, latestVersion, currentVersion: this.currentVersion, changedFiles: 0, totalSize: 0, manifest: null }
-      }
-
-      const zipAsset = release.assets.find((a: any) => a.name === 'www.zip')
-      if (!zipAsset) {
-        this.setState('idle')
-        return { hasUpdate: false, latestVersion, currentVersion: this.currentVersion, changedFiles: 0, totalSize: 0, manifest: null }
-      }
-      this.zipDownloadUrl = zipAsset.browser_download_url
-
-      const manifestResp = await fetch(manifestAsset.browser_download_url)
       const remoteManifest: UpdateManifest = await manifestResp.json()
+      const latestVersion = remoteManifest.version
 
-      const { AppUpdate } = await import('../plugins/AppUpdate')
-
-      let changedFiles = 0
-      let totalSize = 0
-
-      for (const [filePath, fileInfo] of Object.entries(remoteManifest.files)) {
-        try {
-          const result = await AppUpdate.getFileHash({ path: filePath })
-          if (!result.exists || result.sha256 !== fileInfo.sha256) {
-            changedFiles++
-            totalSize += fileInfo.size
-          }
-        } catch {
-          changedFiles++
-          totalSize += fileInfo.size
-        }
-      }
-
-      const hasUpdate = changedFiles > 0 && latestVersion !== this.currentVersion
+      const totalSize = Object.values(remoteManifest.files).reduce((s, f) => s + f.size, 0)
+      const hasUpdate = compareVersions(latestVersion, this.currentVersion) > 0
 
       if (hasUpdate) {
         this.setState('available')
@@ -144,7 +130,7 @@ class UpdateManager {
         hasUpdate,
         latestVersion,
         currentVersion: this.currentVersion,
-        changedFiles,
+        changedFiles: 0,
         totalSize,
         manifest: remoteManifest,
       }

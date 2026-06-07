@@ -8,6 +8,7 @@ export interface UserInfo {
   is_verified: boolean
   player_title: string
   api_key?: string
+  tts_api_key?: string
   deepseek_api_key?: string
   somark_api_key?: string
   created_at: string

@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
 import { authApi, gameApi, characterApi } from '../../api'
 import { cacheApiKey } from '../../services/TtsService'
+import { useAuth } from '../../contexts/AuthContext'
 import TtsTutorial from './TtsTutorial'
 
 const LOCAL_STORAGE_KEY = 'game_last_session'
@@ -37,6 +38,7 @@ function resolveUrl(url: string): string {
 
 export default function GameHome() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [hasHistory, setHasHistory] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
@@ -69,6 +71,8 @@ export default function GameHome() {
   })
   const bgmRef = useRef<HTMLAudioElement | null>(null)
   const [bgmMuted, setBgmMuted] = useState(() => localStorage.getItem('game_bgm_muted') === 'true')
+  const [scale, setScale] = useState(1)
+  const [isMobilePortrait, setIsMobilePortrait] = useState(false)
 
   useEffect(() => {
     const style = document.createElement('style')
@@ -159,6 +163,21 @@ export default function GameHome() {
   }, [bgmMuted])
 
   useEffect(() => {
+    const handleResize = () => {
+      const w = window.innerWidth
+      const h = window.innerHeight
+      const scaleX = w / 1440
+      const scaleY = h / 900
+      const s = Math.min(scaleX, scaleY)
+      setScale(Math.max(0.4, Math.min(1.3, s)))
+      setIsMobilePortrait(w < 768 && h > w)
+    }
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
     const onFocus = () => {
       const saved = localStorage.getItem(HOME_CHAR_KEY)
       if (saved) {
@@ -200,6 +219,12 @@ export default function GameHome() {
     root.style.setProperty('--theme-text-light', theme.textLight)
     localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(theme))
   }, [theme])
+
+  useEffect(() => {
+    if (!user?.deepseek_api_key) {
+      window.dispatchEvent(new CustomEvent('api-key-missing', { detail: { missingKeys: ['deepseek'] } }))
+    }
+  }, [user])
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!showEditPortrait) return
@@ -265,7 +290,7 @@ export default function GameHome() {
     try {
       const user = await authApi.getCurrentUser()
       setPlayerTitle(user.player_title || '同学')
-      setUserApiKey(user.api_key || '')
+      setUserApiKey(user.tts_api_key || '')
     } catch (err) {
       console.error('获取用户信息失败', err)
     }
@@ -274,7 +299,7 @@ export default function GameHome() {
   const handleSaveSettings = async () => {
     setSaving(true)
     try {
-      await authApi.updateSettings({ player_title: playerTitle.trim() || '同学', api_key: userApiKey.trim() || undefined })
+      await authApi.updateSettings({ player_title: playerTitle.trim() || '同学', tts_api_key: userApiKey.trim() })
       if (userApiKey.trim()) cacheApiKey(userApiKey.trim())
       setShowSettings(false)
     } catch (err) {
@@ -311,7 +336,7 @@ export default function GameHome() {
         ))}
       </div>
 
-      {characterPortrait && (
+      {!isMobilePortrait && characterPortrait && (
         <div className="fixed right-[5%] bottom-0 h-[80%] pointer-events-none" style={{ zIndex: 5 }}>
           <img
             src={characterPortrait}
@@ -329,6 +354,16 @@ export default function GameHome() {
               拖动调整位置
             </div>
           )}
+        </div>
+      )}
+
+      {isMobilePortrait && (
+        <div className="fixed inset-0 z-30 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm">
+          <svg className="w-20 h-20 text-white/80 mb-6 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0110.5 3h6a2.25 2.25 0 012.25 2.25v13.5A2.25 2.25 0 0116.5 21h-6a2.25 2.25 0 01-2.25-2.25V15m-3 0l3-3m0 0l3 3m-3-3v12" />
+          </svg>
+          <p className="text-white/90 text-lg font-medium">横屏体验更佳</p>
+          <p className="text-white/50 text-sm mt-2">请将设备旋转至横向</p>
         </div>
       )}
 
@@ -411,16 +446,16 @@ export default function GameHome() {
         </svg>
       </button>
 
-      <div className="relative h-full flex flex-col items-start justify-center px-12">
-        <div className="flex justify-start mb-4 -ml-10">
+      <div className={`relative h-full flex flex-col ${isMobilePortrait ? 'items-center justify-center' : 'items-start justify-center'} px-12`}>
+        <div className="flex justify-start mb-4" style={{ marginLeft: `${-10 * scale}px` }}>
           <img
             src="/home-bg/logo.png"
             alt="叙述之叶"
             className="drop-shadow-lg"
-            style={{ width: '350px', height: 'auto' }}
+            style={{ width: `${350 * scale}px`, height: 'auto' }}
           />
         </div>
-        <div className="w-full max-w-[220px] space-y-1">
+        <div className="w-full" style={{ maxWidth: `${220 * scale}px` }}>
 
           <button onClick={() => navigate('/game/select')} className="w-full transition-transform duration-200 hover:scale-105 active:scale-[0.97]">
             <img src="/home-bg/开始阅读.png" alt="开始新的阅读" className="w-full h-auto drop-shadow-lg" />

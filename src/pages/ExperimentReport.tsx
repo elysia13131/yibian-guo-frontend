@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
-import { FlaskConical, Plus, Trash2, MessageSquare, FileText, Send, ChevronLeft, Loader2, Download, BarChart3 } from 'lucide-react'
+import { FlaskConical, Plus, Trash2, MessageSquare, FileText, Send, ChevronLeft, Loader2, Download, BarChart3, Camera, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { marked } from 'marked'
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, RadialLinearScale, Title, Tooltip, Legend, Filler } from 'chart.js'
 import { Scatter, Bar, Pie, Doughnut, PolarArea, Radar } from 'react-chartjs-2'
@@ -49,7 +49,7 @@ export default function ExperimentReport() {
   const [newTitle, setNewTitle] = useState('')
   const [sectionsText, setSectionsText] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [selectedImages, setSelectedImages] = useState<File[]>([])
+  const [photoItems, setPhotoItems] = useState<{ id: string; file: File; preview: string }[]>([])
   const [creating, setCreating] = useState(false)
   const [activeReport, setActiveReport] = useState<any>(null)
   const [chatInput, setChatInput] = useState('')
@@ -68,6 +68,71 @@ export default function ExperimentReport() {
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [currentTableConfig, setCurrentTableConfig] = useState<{ columns: string[]; rows: number; tableId: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return
+    const valid: { id: string; file: File; preview: string }[] = []
+    for (const f of Array.from(e.target.files)) {
+      if (!f.type.startsWith('image/')) continue
+      if (photoItems.length + valid.length >= 300) break
+      valid.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file: f,
+        preview: URL.createObjectURL(f),
+      })
+    }
+    setPhotoItems(prev => [...prev, ...valid])
+    setSelectedFile(null)
+    e.target.value = ''
+  }
+
+  const handleCameraCapture = async () => {
+    try {
+      const { Camera: CapacitorCamera, CameraResultType, CameraSource } = await import('@capacitor/camera')
+      const photo = await CapacitorCamera.getPhoto({
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Camera,
+        quality: 90,
+      })
+      if (!photo.webPath) return
+      const response = await fetch(photo.webPath)
+      const blob = await response.blob()
+      const fileName = photo.path?.split('/').pop() || `photo_${Date.now()}.jpg`
+      const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' })
+      if (photoItems.length >= 300) return
+      setPhotoItems(prev => [...prev, {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file,
+        preview: URL.createObjectURL(file),
+      }])
+      setSelectedFile(null)
+    } catch (err: any) {
+      if (err.message !== 'User cancelled photos app') {
+        console.error('Camera capture error:', err)
+      }
+    }
+  }
+
+  const removePhoto = (id: string) => {
+    setPhotoItems(prev => {
+      const item = prev.find(p => p.id === id)
+      if (item) URL.revokeObjectURL(item.preview)
+      return prev.filter(p => p.id !== id)
+    })
+  }
+
+  const movePhoto = (id: string, dir: -1 | 1) => {
+    setPhotoItems(prev => {
+      const idx = prev.findIndex(p => p.id === id)
+      if (idx === -1) return prev
+      const t = idx + dir
+      if (t < 0 || t >= prev.length) return prev
+      const arr = [...prev]
+      const tmp = arr[idx]; arr[idx] = arr[t]; arr[t] = tmp
+      return arr
+    })
+  }
   const screenshotInputRef = useRef<HTMLInputElement>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const reportEndRef = useRef<HTMLDivElement>(null)
@@ -289,21 +354,22 @@ export default function ExperimentReport() {
         await api.postForm(`/api/v1/experiments/${result.report.id}/upload`, fileForm)
       }
 
-      if (selectedImages.length > 0 && result.report?.id) {
+      if (photoItems.length > 0 && result.report?.id) {
         try {
           const imgForm = new FormData()
-          selectedImages.forEach(img => imgForm.append('files', img))
+          photoItems.forEach(item => imgForm.append('files', item.file))
           await api.postForm(`/api/v1/experiments/${result.report.id}/upload-images`, imgForm)
         } catch (e) {
           console.warn('课件截图上传失败（可选），实验已创建成功', e)
         }
+        photoItems.forEach(item => URL.revokeObjectURL(item.preview))
       }
 
       setShowCreate(false)
       setNewTitle('')
       setSectionsText('')
       setSelectedFile(null)
-      setSelectedImages([])
+      setPhotoItems([])
 
       const reportBasic = result.report
       setActiveReport({
@@ -1641,9 +1707,9 @@ export default function ExperimentReport() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">参考课件 <span className="text-gray-400 font-normal">（可选，文档和截图二选一）</span></label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">参考课件 <span className="text-gray-400 font-normal">（可选，文档和截图选一）</span></label>
                 <div className="space-y-2">
-                  <button onClick={() => { fileInputRef.current?.click(); setSelectedImages([]) }} className={`w-full py-6 border-2 border-dashed rounded-xl text-sm transition-colors ${selectedFile ? 'border-purple-400 text-purple-500 bg-purple-50' : 'border-gray-300 text-gray-400 hover:border-purple-300 hover:text-purple-500'}`}>
+                  <button onClick={() => { fileInputRef.current?.click(); setPhotoItems(prev => { prev.forEach(p => URL.revokeObjectURL(p.preview)); return [] }) }} className={`w-full py-6 border-2 border-dashed rounded-xl text-sm transition-colors ${selectedFile ? 'border-purple-400 text-purple-500 bg-purple-50' : 'border-gray-300 text-gray-400 hover:border-purple-300 hover:text-purple-500'}`}>
                     {selectedFile ? selectedFile.name : '📄 上传文档（PDF/Word/PPT/Markdown）'}
                   </button>
                   <div className="flex items-center gap-3 text-xs text-gray-400">
@@ -1651,30 +1717,52 @@ export default function ExperimentReport() {
                     <span>或</span>
                     <div className="flex-1 h-px bg-gray-200" />
                   </div>
-                  <button
-                    onClick={() => {
-                      setSelectedFile(null)
-                      const input = document.createElement('input')
-                      input.type = 'file'
-                      input.accept = 'image/*'
-                      input.multiple = true
-                      input.onchange = () => {
-                        if (input.files) {
-                          setSelectedImages(Array.from(input.files))
-                        }
-                      }
-                      input.click()
-                    }}
-                    className={`w-full py-6 border-2 border-dashed rounded-xl text-sm transition-colors ${selectedImages.length > 0 ? 'border-green-400 text-green-500 bg-green-50' : 'border-gray-300 text-gray-400 hover:border-green-300 hover:text-green-500'}`}
-                  >
-                    {selectedImages.length > 0 ? `🖼️ 已选 ${selectedImages.length} 张截图` : '🖼️ 上传课件截图（支持多选）'}
-                  </button>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-500">上传课件截图</span>
+                      <span className="text-xs text-gray-400">{photoItems.length}/300 张</span>
+                    </div>
+                    <input ref={photoInputRef} type="file" accept="image/*" multiple onChange={handlePhotoSelect} className="hidden" />
+                    {photoItems.length === 0 ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={handleCameraCapture} className="py-5 border-2 border-dashed border-gray-300 rounded-xl text-center hover:border-green-300 transition-colors">
+                          <Camera size={24} className="mx-auto text-gray-400" />
+                          <p className="mt-1 text-xs text-gray-500 font-medium">拍照</p>
+                        </button>
+                        <button onClick={() => photoInputRef.current?.click()} className="py-5 border-2 border-dashed border-gray-300 rounded-xl text-center hover:border-green-300 transition-colors">
+                          <FileText size={24} className="mx-auto text-gray-400" />
+                          <p className="mt-1 text-xs text-gray-500 font-medium">选择照片</p>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto mb-2">
+                        {photoItems.map((item, idx) => (
+                          <div key={item.id} className="flex items-center gap-2 bg-gray-50 rounded-lg p-2 border border-gray-200">
+                            <span className="w-5 text-center text-[10px] text-gray-400 font-mono flex-shrink-0">{idx + 1}</span>
+                            <img src={item.preview} alt="" className="w-12 h-12 object-cover rounded flex-shrink-0" />
+                            <span className="flex-1 text-xs text-gray-600 truncate">{item.file.name}</span>
+                            <button onClick={() => movePhoto(item.id, -1)} disabled={idx === 0} className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"><ChevronUp className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => movePhoto(item.id, 1)} disabled={idx === photoItems.length - 1} className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"><ChevronDown className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => removePhoto(item.id)} className="p-0.5 hover:bg-red-100 rounded text-red-400"><X className="w-3.5 h-3.5" /></button>
+                          </div>
+                        ))}
+                        <div className="flex gap-2">
+                          <button onClick={handleCameraCapture} className="flex-1 py-2 text-xs text-emerald-500 hover:text-emerald-600 border border-dashed border-gray-300 rounded-lg transition-colors flex items-center justify-center gap-1">
+                            <Camera className="w-3.5 h-3.5" />拍照
+                          </button>
+                          <button onClick={() => photoInputRef.current?.click()} className="flex-1 py-2 text-xs text-blue-500 hover:text-blue-600 border border-dashed border-gray-300 rounded-lg transition-colors flex items-center justify-center gap-1">
+                            <FileText className="w-3.5 h-3.5" />选择照片
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <input ref={fileInputRef} type="file" accept=".pdf,.docx,.pptx,.ppt,.txt,.md" className="hidden" onChange={e => { setSelectedFile(e.target.files?.[0] || null); if (e.target.files?.[0]) setSelectedImages([]) }} />
+                <input ref={fileInputRef} type="file" accept=".pdf,.docx,.pptx,.ppt,.txt,.md" className="hidden" onChange={e => { setSelectedFile(e.target.files?.[0] || null); if (e.target.files?.[0]) { photoItems.forEach(p => URL.revokeObjectURL(p.preview)); setPhotoItems([]) } }} />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => { setShowCreate(false); setSelectedFile(null); setSelectedImages([]); setSectionsText('') }} className="flex-1 py-2.5 border rounded-xl text-sm text-gray-600 hover:bg-gray-50">取消</button>
+              <button onClick={() => { photoItems.forEach(p => URL.revokeObjectURL(p.preview)); setShowCreate(false); setSelectedFile(null); setPhotoItems([]); setSectionsText('') }} className="flex-1 py-2.5 border rounded-xl text-sm text-gray-600 hover:bg-gray-50">取消</button>
               <button onClick={handleCreate} disabled={!newTitle.trim() || creating} className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl text-sm hover:bg-purple-700 disabled:opacity-40">
                 {creating ? '创建中...' : '创建'}
               </button>

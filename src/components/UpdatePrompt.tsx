@@ -107,8 +107,7 @@ export default function UpdatePrompt() {
           发现新版本 v{updateInfo.latestVersion}
         </p>
         <p className="text-sm text-gray-500 mt-1">
-          {updateInfo.changedFiles} 个文件更新
-          （{(updateInfo.totalSize / 1024 / 1024).toFixed(1)} MB）
+          大小约 {(updateInfo.totalSize / 1024 / 1024).toFixed(1)} MB
         </p>
         <div className="mt-2 flex gap-2">
           <button

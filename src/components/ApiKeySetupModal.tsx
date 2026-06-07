@@ -47,7 +47,7 @@ const KEY_CONFIGS: Record<string, {
     gradient: 'from-purple-400 to-purple-600',
     docUrl: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
     docLabel: '火山引擎控制台',
-    info: ['用于 AI 生成图片、Seedream 模型'],
+    info: ['用于 AI 生成图片（Seedream 模型）'],
     hasFreeQuota: true,
     freeDetail: '新用户注册即享免费额度',
   },

@@ -1,4 +1,4 @@
-import { Upload, BookOpen, TrendingUp, Clock, Award, ChevronRight, FileText, Eye, Search, BookMarked, BarChart, FlaskConical, Sparkles } from 'lucide-react'
+import { Upload, BookOpen, TrendingUp, Clock, Award, ChevronRight, FileText, Eye, Search, BookMarked, BarChart, FlaskConical, Sparkles, GitBranch } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
 import { motion, useInView, AnimatePresence } from 'motion/react'
@@ -157,6 +157,7 @@ const Home = () => {
     { icon: <BarChart className="w-5 h-5" />, label: '查看统计', path: '/analytics', gradient: 'from-emerald-400 to-teal-500', shadow: 'shadow-emerald-200' },
     { icon: <Sparkles className="w-5 h-5" />, label: '灵枢（Harness）', path: '/agent', gradient: 'from-amber-500 to-rose-500', shadow: 'shadow-amber-300' },
     { icon: <BookMarked className="w-5 h-5" />, label: '视觉小说（Narraleaf）', path: '/game', gradient: 'from-sky-400 to-blue-500', shadow: 'shadow-sky-200' },
+    { icon: <GitBranch className="w-5 h-5" />, label: '知识图谱（Obsidian）', path: '/knowledge-graph', gradient: 'from-stone-600 to-slate-700', shadow: 'shadow-stone-300' },
   ]
 
   const getProgressColor = (change: number) => change > 0 ? 'text-emerald-600' : change < 0 ? 'text-rose-600' : 'text-stone-600'
@@ -246,7 +247,7 @@ const Home = () => {
                   >
                     <div className="text-white">{action.icon}</div>
                   </motion.div>
-                  <span className="text-sm font-semibold text-stone-700" style={{ transform: "translateZ(10px)" }}>
+                  <span className="text-sm font-semibold text-stone-700 text-center leading-snug" style={{ transform: "translateZ(10px)" }}>
                     {action.label}
                   </span>
                 </div>

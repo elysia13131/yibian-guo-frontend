@@ -145,9 +145,18 @@ const MODELS_DIR = 'minicpm-models'
 export class ModelManager {
   private downloadedModelsCache = new Map<string, boolean>()
   private downloadAbort = new Map<string, AbortController>()
+  private currentProgress = new Map<string, DownloadProgress>()
 
   getAvailableModels(): ModelInfo[] {
     return MODEL_REGISTRY
+  }
+
+  isDownloading(modelId: string): boolean {
+    return this.downloadAbort.has(modelId)
+  }
+
+  getCurrentProgress(modelId: string): DownloadProgress | null {
+    return this.currentProgress.get(modelId) || null
   }
 
   async isDownloaded(modelId: string): Promise<boolean> {
@@ -178,6 +187,10 @@ export class ModelManager {
     const model = MODEL_REGISTRY.find(m => m.id === modelId)
     if (!model) throw new Error(`未知模型: ${modelId}`)
     if (await this.isDownloaded(modelId)) return
+    if (this.isDownloading(modelId)) {
+      onProgress?.(this.getCurrentProgress(modelId)!)
+      return
+    }
 
     const abort = new AbortController()
     this.downloadAbort.set(modelId, abort)
@@ -198,10 +211,15 @@ export class ModelManager {
     const modelDir = `${dir}/${model.id}`
     await Filesystem.mkdir({ path: modelDir, directory: await getCapacitorDir() as any, recursive: true })
 
-    try {
-      for (const file of model.files) {
-        if (abort.signal.aborted) throw new Error('下载已取消')
-        onProgress?.({ filename: file.filename, loaded: 0, total: file.sizeBytes || 1, percent: 0 })
+    const fileProgressCb = (p: DownloadProgress) => {
+        this.currentProgress.set(model.id, p)
+        onProgress?.(p)
+      }
+
+      try {
+        for (const file of model.files) {
+          if (abort.signal.aborted) throw new Error('下载已取消')
+          fileProgressCb({ filename: file.filename, loaded: 0, total: file.sizeBytes || 1, percent: 0 })
 
         const urlsToTry = [file.url]
         let response: Response | null = null
@@ -236,7 +254,7 @@ export class ModelManager {
           if (value) {
             chunks.push(value)
             loaded += value.length
-            onProgress?.({ filename: file.filename, loaded, total: total || loaded, percent: total ? Math.round((loaded / total) * 100) : 0 })
+            fileProgressCb({ filename: file.filename, loaded, total: total || loaded, percent: total ? Math.round((loaded / total) * 100) : 0 })
           }
         }
 
@@ -262,6 +280,7 @@ export class ModelManager {
       throw err
     } finally {
       this.downloadAbort.delete(model.id)
+      this.currentProgress.delete(model.id)
     }
   }
 
@@ -269,12 +288,17 @@ export class ModelManager {
     model: ModelInfo, abort: AbortController,
     onProgress?: (p: DownloadProgress) => void,
   ): Promise<void> {
+    const fileProgressCb = (p: DownloadProgress) => {
+      this.currentProgress.set(model.id, p)
+      onProgress?.(p)
+    }
+
     try {
       await idbDelete(MARKER_STORE, model.id)
 
       for (const file of model.files) {
         if (abort.signal.aborted) throw new Error('下载已取消')
-        onProgress?.({ filename: file.filename, loaded: 0, total: file.sizeBytes || 1, percent: 0 })
+        fileProgressCb({ filename: file.filename, loaded: 0, total: file.sizeBytes || 1, percent: 0 })
 
         const urlsToTry = [file.url]
         let response: Response | null = null
@@ -309,14 +333,14 @@ export class ModelManager {
           if (value) {
             chunks.push(value)
             loaded += value.length
-            onProgress?.({ filename: file.filename, loaded, total: total || loaded, percent: total ? Math.round((loaded / total) * 100) : 0 })
+            fileProgressCb({ filename: file.filename, loaded, total: total || loaded, percent: total ? Math.round((loaded / total) * 100) : 0 })
           }
         }
 
         const blob = new Blob(chunks as BlobPart[])
         const key = `${model.id}/${file.filename}`
         await idbPut(STORE_NAME, key, blob)
-        onProgress?.({ filename: file.filename, loaded, total: total || loaded, percent: 100 })
+        fileProgressCb({ filename: file.filename, loaded, total: total || loaded, percent: 100 })
       }
 
       await idbPut(MARKER_STORE, model.id, 'done')
@@ -326,6 +350,7 @@ export class ModelManager {
       throw err
     } finally {
       this.downloadAbort.delete(model.id)
+      this.currentProgress.delete(model.id)
     }
   }
 
