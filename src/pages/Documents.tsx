@@ -803,7 +803,7 @@ export default function DocumentsPage() {
                       <input
                         id="file-input"
                         type="file"
-                        accept=".pdf,.docx,.doc,.txt,.md,.ppt,.pptx,.xls,.xlsx,.csv,.rtf,.odt"
+                        accept=".pdf,.docx,.doc,.txt,.md,.ppt,.pptx,.xls,.xlsx,.xlsm,.csv"
                         className="hidden"
                         onChange={handleFileChange}
                       />
