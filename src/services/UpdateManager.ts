@@ -3,6 +3,15 @@ import JSZip from 'jszip'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve((reader.result as string).split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
 export interface ManifestFile {
   sha256: string
   size: number
@@ -12,10 +21,13 @@ export interface UpdateManifest {
   version: string
   versionCode: number
   files: Record<string, ManifestFile>
+  needsReinstall?: boolean
+  apkUrl?: string
 }
 
 export interface UpdateInfo {
   hasUpdate: boolean
+  needsReinstall: boolean
   latestVersion: string
   latestVersionCode: number
   currentVersion: string
@@ -93,7 +105,8 @@ class UpdateManager {
 
   async checkForUpdate(): Promise<UpdateInfo> {
     const empty = {
-      hasUpdate: false, latestVersion: '', latestVersionCode: 0,
+      hasUpdate: false, needsReinstall: false,
+      latestVersion: '', latestVersionCode: 0,
       currentVersion: this.currentVersion, currentVersionCode: this.currentVersionCode,
       totalSize: 0, manifest: null,
     }
@@ -120,6 +133,7 @@ class UpdateManager {
 
       return {
         hasUpdate,
+        needsReinstall: remoteManifest.needsReinstall || false,
         latestVersion: remoteManifest.version,
         latestVersionCode: remoteManifest.versionCode || 0,
         currentVersion: this.currentVersion,
@@ -214,6 +228,62 @@ class UpdateManager {
       onProgress({ percent: 100, loadedBytes: totalBytes, totalBytes, currentFile: '正在应用更新...' })
       await AppUpdate.clearCacheAndReload()
 
+      this.setState('completed')
+    } catch (err: any) {
+      this.setState(err.name === 'AbortError' ? 'idle' : 'error')
+      throw err
+    }
+  }
+
+  async downloadAndInstallApk(
+    manifest: UpdateManifest,
+    onProgress: (progress: DownloadProgress) => void,
+  ): Promise<void> {
+    if (!this.isNative) return
+
+    this.setState('downloading')
+    this.abortController = new AbortController()
+
+    const { AppUpdate } = await import('../plugins/AppUpdate')
+    const apkUrl = `${API_BASE_URL}/${manifest.apkUrl || 'update/app-debug.apk'}`
+
+    try {
+      onProgress({ percent: 0, loadedBytes: 0, totalBytes: 0, currentFile: '正在下载安装包...' })
+
+      const response = await fetch(apkUrl, { signal: this.abortController.signal })
+      if (!response.ok) throw new Error(`下载失败 (HTTP ${response.status})`)
+
+      const contentLength = Number(response.headers.get('content-length')) || 0
+      const reader = response.body!.getReader()
+      const chunks: Uint8Array[] = []
+      let downloaded = 0
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+        downloaded += value.length
+        onProgress({
+          percent: contentLength > 0 ? Math.round((downloaded / contentLength) * 90) : 0,
+          loadedBytes: downloaded,
+          totalBytes: contentLength,
+          currentFile: contentLength > 0
+            ? `正在下载 ${(downloaded / 1024 / 1024).toFixed(1)} / ${(contentLength / 1024 / 1024).toFixed(1)} MB`
+            : '正在下载...',
+        })
+      }
+
+      // 写入 APK 到内部存储的 apk/ 目录
+      const apkRelativePath = 'apk/update.apk'
+      const apkBase64 = await blobToBase64(new Blob(chunks as BlobPart[]))
+      await AppUpdate.writeFile({ path: apkRelativePath, content: apkBase64 })
+
+      onProgress({ percent: 95, loadedBytes: downloaded, totalBytes: contentLength, currentFile: '正在启动安装...' })
+
+      // installApk 会对相对路径自动查找 filesDir/public/ 下
+      await AppUpdate.installApk({ path: apkRelativePath })
+
+      onProgress({ percent: 100, loadedBytes: downloaded, totalBytes: contentLength, currentFile: '请在安装界面确认' })
       this.setState('completed')
     } catch (err: any) {
       this.setState(err.name === 'AbortError' ? 'idle' : 'error')

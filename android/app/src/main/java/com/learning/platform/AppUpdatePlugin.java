@@ -1,13 +1,17 @@
 package com.learning.platform;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.util.Base64;
 import android.util.Log;
+
+import androidx.core.content.FileProvider;
 
 import com.getcapacitor.Bridge;
 import com.getcapacitor.JSObject;
@@ -280,6 +284,45 @@ public class AppUpdatePlugin extends Plugin {
         } catch (Exception e) {
             Log.e(TAG, "Failed to clear cache and reload", e);
             call.reject("Failed: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void installApk(PluginCall call) {
+        String apkPath = call.getString("path");
+        if (apkPath == null) {
+            call.reject("apk path is required");
+            return;
+        }
+
+        try {
+            File apkFile = new File(apkPath);
+            // 如果是相对路径，尝试在 public 目录下查找
+            if (!apkFile.exists()) {
+                apkFile = new File(getContext().getFilesDir(), PUBLIC_DIR + "/" + apkPath);
+            }
+            if (!apkFile.exists()) {
+                call.reject("APK file not found: " + apkPath);
+                return;
+            }
+
+            Uri apkUri = FileProvider.getUriForFile(
+                getContext(),
+                getContext().getPackageName() + ".fileprovider",
+                apkFile
+            );
+
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+
+            Log.i(TAG, "APK install intent launched: " + apkFile.getAbsolutePath());
+            call.resolve();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to install APK", e);
+            call.reject("Failed to install: " + e.getMessage());
         }
     }
 }

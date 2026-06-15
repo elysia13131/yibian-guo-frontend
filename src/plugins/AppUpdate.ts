@@ -7,6 +7,7 @@ export interface AppUpdatePluginDefinitions {
   deleteFile(options: { path: string }): Promise<void>
   getFileHash(options: { path: string }): Promise<{ exists: boolean; sha256?: string }>
   clearCacheAndReload(): Promise<void>
+  installApk(options: { path: string }): Promise<void>
 }
 
 export const AppUpdate = registerPlugin<AppUpdatePluginDefinitions>('AppUpdate')
