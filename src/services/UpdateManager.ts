@@ -3,18 +3,6 @@ import JSZip from 'jszip'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
 
-function compareVersions(a: string, b: string): number {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const na = pa[i] || 0
-    const nb = pb[i] || 0
-    if (na > nb) return 1
-    if (na < nb) return -1
-  }
-  return 0
-}
-
 export interface ManifestFile {
   sha256: string
   size: number
@@ -29,8 +17,9 @@ export interface UpdateManifest {
 export interface UpdateInfo {
   hasUpdate: boolean
   latestVersion: string
+  latestVersionCode: number
   currentVersion: string
-  changedFiles: number
+  currentVersionCode: number
   totalSize: number
   manifest: UpdateManifest | null
 }
@@ -50,8 +39,9 @@ class UpdateManager {
   private state: UpdateState = 'idle'
   private stateListeners: StateCallback[] = []
   private currentVersion = '0.0.0'
+  private currentVersionCode = 0
   private abortController: AbortController | null = null
-  private zipDownloadUrl = ''
+  private apkDownloadUrl = ''
 
   private get isNative(): boolean {
     try {
@@ -78,65 +68,68 @@ class UpdateManager {
   }
 
   async init(): Promise<void> {
+    // 始终以构建注入的版本为基准，不依赖运行时插件
+    this.currentVersion = (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : null) || '0.0.0'
+    this.currentVersionCode = (typeof __APP_VERSION_CODE__ !== 'undefined' ? __APP_VERSION_CODE__ : null) || 0
+
     if (!this.isNative) return
+
+    // 尝试读取持久化版本（热更新可能已升级到更高版本）
     try {
       const { AppUpdate } = await import('../plugins/AppUpdate')
       const result = await AppUpdate.getCurrentVersion()
-      this.currentVersion = result.version || '0.0.0'
-      if (this.currentVersion === '0.0.0') {
-        try {
-          const resp = await fetch('/manifest.json')
-          const manifest: UpdateManifest = await resp.json()
-          this.currentVersion = manifest.version || '0.0.0'
-          await AppUpdate.setCurrentVersion({ version: this.currentVersion })
-        } catch {
-          /* manifest.json not bundled, keep 0.0.0 */
-        }
+      if ((result.versionCode || 0) > this.currentVersionCode) {
+        this.currentVersion = result.version || this.currentVersion
+        this.currentVersionCode = result.versionCode
+      }
+      // 如果持久化的版本比构建版本低，写入新版本覆盖
+      if ((result.versionCode || 0) < this.currentVersionCode) {
+        await AppUpdate.setCurrentVersion({ version: this.currentVersion, versionCode: this.currentVersionCode })
       }
     } catch {
-      this.currentVersion = '0.0.0'
+      // 插件未就绪，不影响初始化：构建版本已足够
     }
   }
 
   async checkForUpdate(): Promise<UpdateInfo> {
-    if (!this.isNative) {
-      return { hasUpdate: false, latestVersion: '', currentVersion: this.currentVersion, changedFiles: 0, totalSize: 0, manifest: null }
+    const empty = {
+      hasUpdate: false, latestVersion: '', latestVersionCode: 0,
+      currentVersion: this.currentVersion, currentVersionCode: this.currentVersionCode,
+      totalSize: 0, manifest: null,
     }
+    if (!this.isNative) return empty
 
     this.setState('checking')
 
     try {
-      this.zipDownloadUrl = `${API_BASE_URL}/update/www.zip`
+      this.apkDownloadUrl = `${API_BASE_URL}/update/www.zip`
 
       const manifestResp = await fetch(`${API_BASE_URL}/update/manifest.json`)
       if (!manifestResp.ok) {
         this.setState('idle')
-        return { hasUpdate: false, latestVersion: '', currentVersion: this.currentVersion, changedFiles: 0, totalSize: 0, manifest: null }
+        return empty
       }
 
       const remoteManifest: UpdateManifest = await manifestResp.json()
-      const latestVersion = remoteManifest.version
-
       const totalSize = Object.values(remoteManifest.files).reduce((s, f) => s + f.size, 0)
-      const hasUpdate = compareVersions(latestVersion, this.currentVersion) > 0
 
-      if (hasUpdate) {
-        this.setState('available')
-      } else {
-        this.setState('idle')
-      }
+      // 以 versionCode 为唯一更新判断依据
+      const hasUpdate = (remoteManifest.versionCode || 0) > this.currentVersionCode
+
+      this.setState(hasUpdate ? 'available' : 'idle')
 
       return {
         hasUpdate,
-        latestVersion,
+        latestVersion: remoteManifest.version,
+        latestVersionCode: remoteManifest.versionCode || 0,
         currentVersion: this.currentVersion,
-        changedFiles: 0,
+        currentVersionCode: this.currentVersionCode,
         totalSize,
         manifest: remoteManifest,
       }
-    } catch (err) {
+    } catch {
       this.setState('idle')
-      return { hasUpdate: false, latestVersion: '', currentVersion: this.currentVersion, changedFiles: 0, totalSize: 0, manifest: null }
+      return empty
     }
   }
 
@@ -155,29 +148,39 @@ class UpdateManager {
     const totalBytes = Object.values(manifest.files).reduce((s, f) => s + f.size, 0)
 
     try {
-      onProgress({
-        percent: 0,
-        loadedBytes: 0,
-        totalBytes,
-        currentFile: '正在下载更新包...',
-      })
+      onProgress({ percent: 0, loadedBytes: 0, totalBytes, currentFile: '正在下载更新包...' })
 
-      const response = await fetch(this.zipDownloadUrl, {
-        signal: this.abortController.signal,
-      })
+      // 流式下载 www.zip，实时上报进度
+      const response = await fetch(this.apkDownloadUrl, { signal: this.abortController.signal })
+      if (!response.ok) throw new Error(`下载更新包失败 (HTTP ${response.status})`)
 
-      if (!response.ok) {
-        throw new Error(`下载更新包失败 (HTTP ${response.status})`)
+      const contentLength = Number(response.headers.get('content-length')) || 0
+      const reader = response.body!.getReader()
+      const chunks: Uint8Array[] = []
+      let downloaded = 0
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+        downloaded += value.length
+        if (contentLength > 0) {
+          onProgress({
+            percent: Math.round((downloaded / contentLength) * 100),
+            loadedBytes: downloaded,
+            totalBytes: contentLength,
+            currentFile: '正在下载更新包...',
+          })
+        }
       }
 
-      const zipBlob = await response.blob()
+      const zipBlob = new Blob(chunks as BlobPart[])
       const zip = await JSZip.loadAsync(zipBlob)
 
       for (const [filePath, fileInfo] of Object.entries(manifest.files)) {
-        if (this.abortController.signal.aborted) {
-          throw new Error('更新已取消')
-        }
+        if (this.abortController.signal.aborted) throw new Error('更新已取消')
 
+        // 增量：SHA256 一致的跳过
         const result = await AppUpdate.getFileHash({ path: filePath })
         if (result.exists && result.sha256 === fileInfo.sha256) {
           loadedBytes += fileInfo.size
@@ -186,38 +189,34 @@ class UpdateManager {
 
         onProgress({
           percent: totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : 0,
-          loadedBytes,
-          totalBytes,
-          currentFile: filePath,
+          loadedBytes, totalBytes, currentFile: filePath,
         })
 
         const zipEntry = zip.file(filePath)
-        if (!zipEntry) {
-          throw new Error(`更新包中缺少文件: ${filePath}`)
-        }
+        if (!zipEntry) throw new Error(`更新包中缺少文件: ${filePath}`)
 
         const base64 = await zipEntry.async('base64')
         await AppUpdate.writeFile({ path: filePath, content: base64 })
-
         loadedBytes += fileInfo.size
 
         onProgress({
           percent: Math.round((loadedBytes / totalBytes) * 100),
-          loadedBytes,
-          totalBytes,
-          currentFile: filePath,
+          loadedBytes, totalBytes, currentFile: filePath,
         })
       }
 
-      await AppUpdate.setCurrentVersion({ version: manifest.version })
+      // 持久化新版本
+      await AppUpdate.setCurrentVersion({ version: manifest.version, versionCode: manifest.versionCode || 0 })
       this.currentVersion = manifest.version
+      this.currentVersionCode = manifest.versionCode || 0
+
+      // 清除 WebView 缓存并强制重载，确保新版本生效
+      onProgress({ percent: 100, loadedBytes: totalBytes, totalBytes, currentFile: '正在应用更新...' })
+      await AppUpdate.clearCacheAndReload()
+
       this.setState('completed')
     } catch (err: any) {
-      if (err.name === 'AbortError') {
-        this.setState('idle')
-      } else {
-        this.setState('error')
-      }
+      this.setState(err.name === 'AbortError' ? 'idle' : 'error')
       throw err
     }
   }

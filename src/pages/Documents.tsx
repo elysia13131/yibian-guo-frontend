@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Plus, FileText, AlertCircle, CheckCircle, Clock, RefreshCw, Trash2, ArrowLeft, Eye, EyeOff, Camera, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useDocuments, useUploadDocument, useDeleteDocument, useCategories, useTogglePublicStatus, useReparseSomark } from '../hooks/useDocuments'
@@ -7,6 +7,7 @@ import { analyticsApi } from '../api'
 import type { DocumentStatus } from '../types'
 import PageTransition from '../components/PageTransition'
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera'
+import { Capacitor } from '@capacitor/core'
 
 interface UploadProgress {
     documentId: number
@@ -57,9 +58,42 @@ const fileTypeIcons: Record<string, string> = {
 
 export default function DocumentsPage() {
     const navigate = useNavigate()
+    const location = useLocation()
+    const sharedState = location.state as { sharedFilePath?: string; sharedFileName?: string; sharedFileMime?: string } | null
     const [showUpload, setShowUpload] = useState(false)
     const [uploadMode, setUploadMode] = useState<'file' | 'photo'>('file')
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+    // 处理外部分享的文件（"用其他应用打开"）
+    useEffect(() => {
+      if (!sharedState?.sharedFilePath) return
+      const loadSharedFile = async () => {
+        try {
+          const { Filesystem } = await import('@capacitor/filesystem')
+          const result = await Filesystem.readFile({ path: sharedState.sharedFilePath! })
+          const base64Content = result.data as string
+          const byteChars = atob(base64Content)
+          const bytes = new Uint8Array(byteChars.length)
+          for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i)
+          const blob = new Blob([bytes])
+          const fileName = sharedState.sharedFileName || 'shared_file'
+          const file = new File([blob], fileName)
+          setSelectedFile(file)
+          setTitle(fileName.replace(/\.[^/.]+$/, ''))
+          setShowUpload(true)
+          // 清除 IntentHandler 中的暂存
+          try {
+            const { IntentHandler } = await import('../plugins/IntentHandler')
+            await IntentHandler.clearPendingSharedFile()
+          } catch {}
+          // 清除 location state 防止重复触发
+          navigate('/documents', { replace: true, state: {} })
+        } catch (err) {
+          console.error('Failed to load shared file:', err)
+        }
+      }
+      loadSharedFile()
+    }, [sharedState])
     const [photos, setPhotos] = useState<{ id: string; file: File; preview: string }[]>([])
     const [title, setTitle] = useState('')
     const [category, setCategory] = useState('')
@@ -584,12 +618,18 @@ export default function DocumentsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between">
                         <div>
-                          <Link
-                            to={`/documents/${doc.id}`}
-                            className="text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                          >
-                            {doc.title}
-                          </Link>
+                          {doc.tempId ? (
+                            <span className="text-lg font-semibold text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                              {doc.title}
+                            </span>
+                          ) : (
+                            <Link
+                              to={`/documents/${doc.id}`}
+                              className="text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            >
+                              {doc.title}
+                            </Link>
+                          )}
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <p className="text-sm text-gray-500 dark:text-gray-400">
                               {doc.filename}
@@ -763,7 +803,7 @@ export default function DocumentsPage() {
                       <input
                         id="file-input"
                         type="file"
-                        accept=".pdf,.docx,.txt,.md,.ppt,.pptx"
+                        accept=".pdf,.docx,.doc,.txt,.md,.ppt,.pptx,.xls,.xlsx,.csv,.rtf,.odt"
                         className="hidden"
                         onChange={handleFileChange}
                       />
@@ -777,7 +817,7 @@ export default function DocumentsPage() {
                         <div>
                           <FileText size={40} className="mx-auto text-gray-400 dark:text-gray-500" />
                           <p className="mt-2 text-gray-600 dark:text-gray-300">点击选择或拖拽文件到此处</p>
-                          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">支持 PDF、DOCX、PPTX、TXT、MD 格式</p>
+                          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">支持 PDF、DOCX、PPTX、XLSX、CSV、TXT、MD 等格式</p>
                         </div>
                       )}
                     </div>

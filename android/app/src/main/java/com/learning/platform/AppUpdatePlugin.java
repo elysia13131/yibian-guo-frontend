@@ -22,6 +22,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.Map;
 
 @CapacitorPlugin(name = "AppUpdate")
 public class AppUpdatePlugin extends Plugin {
@@ -29,6 +31,7 @@ public class AppUpdatePlugin extends Plugin {
     private static final String TAG = "AppUpdate";
     private static final String PREFS_NAME = "app_update_prefs";
     private static final String KEY_VERSION = "current_version";
+    private static final String KEY_VERSION_CODE = "current_version_code";
     private static final String ASSET_DOMAIN = "appassets.androidplatform.net";
     private static final String ASSET_PATH_PREFIX = "/assets/public/";
     private static final String PUBLIC_DIR = "public";
@@ -109,7 +112,13 @@ public class AppUpdatePlugin extends Plugin {
                     if (updatedFile.exists() && updatedFile.isFile()) {
                         try {
                             String mimeType = getMimeType(relativePath);
-                            return new WebResourceResponse(mimeType, null, new FileInputStream(updatedFile));
+                            WebResourceResponse response = new WebResourceResponse(mimeType, null, new FileInputStream(updatedFile));
+                            Map<String, String> headers = new HashMap<>();
+                            headers.put("Cache-Control", "no-cache, no-store, must-revalidate");
+                            headers.put("Pragma", "no-cache");
+                            headers.put("Expires", "0");
+                            response.setResponseHeaders(headers);
+                            return response;
                         } catch (IOException e) {
                             Log.w(TAG, "Failed to read updated file: " + updatedFile, e);
                         }
@@ -146,8 +155,10 @@ public class AppUpdatePlugin extends Plugin {
     public void getCurrentVersion(PluginCall call) {
         SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String version = prefs.getString(KEY_VERSION, "0.0.0");
+        int versionCode = prefs.getInt(KEY_VERSION_CODE, 0);
         JSObject ret = new JSObject();
         ret.put("version", version);
+        ret.put("versionCode", versionCode);
         call.resolve(ret);
     }
 
@@ -158,8 +169,12 @@ public class AppUpdatePlugin extends Plugin {
             call.reject("version is required");
             return;
         }
+        int versionCode = call.getInt("versionCode", 0);
         SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putString(KEY_VERSION, version).apply();
+        prefs.edit()
+            .putString(KEY_VERSION, version)
+            .putInt(KEY_VERSION_CODE, versionCode)
+            .apply();
         call.resolve();
     }
 
@@ -248,6 +263,23 @@ public class AppUpdatePlugin extends Plugin {
         } catch (Exception e) {
             Log.e(TAG, "Failed to compute hash", e);
             call.reject("Failed to compute hash: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void clearCacheAndReload(PluginCall call) {
+        try {
+            WebView webView = getBridge().getWebView();
+            if (webView != null) {
+                webView.clearCache(true);
+                Log.i(TAG, "WebView cache cleared");
+                webView.post(() -> webView.reload());
+                Log.i(TAG, "WebView reloading");
+            }
+            call.resolve();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to clear cache and reload", e);
+            call.reject("Failed: " + e.getMessage());
         }
     }
 }
