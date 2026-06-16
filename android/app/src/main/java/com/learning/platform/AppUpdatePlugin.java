@@ -160,6 +160,21 @@ public class AppUpdatePlugin extends Plugin {
         SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String version = prefs.getString(KEY_VERSION, "0.0.0");
         int versionCode = prefs.getInt(KEY_VERSION_CODE, 0);
+        // 兜底：无 SharedPreferences 时从 APK PackageInfo 读取
+        if (version.equals("0.0.0") || versionCode == 0) {
+            try {
+                android.content.pm.PackageInfo pInfo = getContext().getPackageManager()
+                    .getPackageInfo(getContext().getPackageName(), 0);
+                if (version.equals("0.0.0") && pInfo.versionName != null) {
+                    version = pInfo.versionName;
+                }
+                if (versionCode == 0) {
+                    versionCode = pInfo.versionCode;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "getCurrentVersion fallback failed", e);
+            }
+        }
         JSObject ret = new JSObject();
         ret.put("version", version);
         ret.put("versionCode", versionCode);
