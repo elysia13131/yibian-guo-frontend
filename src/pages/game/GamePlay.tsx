@@ -341,16 +341,11 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
     }
     updatePosition()
     const observer = new ResizeObserver(updatePosition)
-    const mutationObserver = new MutationObserver(updatePosition)
     const dialog = document.querySelector<HTMLElement>('[data-element-type="dialog"]')
-    if (dialog) {
-      observer.observe(dialog)
-      mutationObserver.observe(dialog, { childList: true, subtree: true, characterData: true })
-    }
+    if (dialog) observer.observe(dialog)
     window.addEventListener('resize', updatePosition)
     return () => {
       observer.disconnect()
-      mutationObserver.disconnect()
       window.removeEventListener('resize', updatePosition)
     }
   }, [ended, currentSectionIndex])
