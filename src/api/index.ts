@@ -19,6 +19,8 @@ async function handleResponse<T>(response: Response): Promise<T> {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
     }
+
+    // 解析错误消息
     let errorMessage = '请求失败'
     try {
       const errorData = await response.json()
@@ -40,7 +42,9 @@ async function handleResponse<T>(response: Response): Promise<T> {
       window.dispatchEvent(new CustomEvent('api-key-missing', { detail: { missingKeys } }))
     }
 
-    throw new Error(errorMessage)
+    const err = new Error(errorMessage) as any
+    err.status = response.status
+    throw err
   }
   return response.json()
 }
@@ -312,6 +316,7 @@ export interface CharacterResponse {
     uid: string;
     owner_id: number;
     name: string;
+    description?: string | null;
     portrait_url: string;
     prompt: string;
     expressions: string[];

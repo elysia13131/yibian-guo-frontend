@@ -20,6 +20,7 @@ export interface ManifestFile {
 export interface UpdateManifest {
   version: string
   versionCode: number
+  minVersionCode?: number
   files: Record<string, ManifestFile>
   needsReinstall?: boolean
   apkUrl?: string
@@ -27,7 +28,7 @@ export interface UpdateManifest {
 
 export interface UpdateInfo {
   hasUpdate: boolean
-  needsReinstall: boolean
+  needsApkUpdate: boolean
   latestVersion: string
   latestVersionCode: number
   currentVersion: string
@@ -80,9 +81,10 @@ class UpdateManager {
   }
 
   async init(): Promise<void> {
-    // 始终以构建注入的版本为基准，不依赖运行时插件
+    // 始终以构建注入的版本为基准
     this.currentVersion = (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : null) || '0.0.0'
     this.currentVersionCode = (typeof __APP_VERSION_CODE__ !== 'undefined' ? __APP_VERSION_CODE__ : null) || 0
+    console.log('[Update] init build version:', this.currentVersion, 'build versionCode:', this.currentVersionCode)
 
     if (!this.isNative) return
 
@@ -90,28 +92,29 @@ class UpdateManager {
     try {
       const { AppUpdate } = await import('../plugins/AppUpdate')
       const result = await AppUpdate.getCurrentVersion()
+      console.log('[Update] getCurrentVersion result:', JSON.stringify(result))
       if ((result.versionCode || 0) > this.currentVersionCode) {
         this.currentVersion = result.version || this.currentVersion
         this.currentVersionCode = result.versionCode
+        console.log('[Update] using plugin version:', this.currentVersion, this.currentVersionCode)
       }
       // 如果持久化的版本比构建版本低，写入新版本覆盖
       if ((result.versionCode || 0) < this.currentVersionCode) {
         await AppUpdate.setCurrentVersion({ version: this.currentVersion, versionCode: this.currentVersionCode })
       }
-    } catch {
-      // 插件未就绪，不影响初始化：构建版本已足够
+    } catch (e) {
+      console.error('[Update] getCurrentVersion failed:', e)
+      // 回退：从 Capacitor 系统 API 获取版本号
+      try {
+        const { App } = await import('@capacitor/app')
+        const info = await App.getInfo()
+        console.log('[Update] Capacitor App info:', info.version, info.build)
+      } catch { }
     }
   }
 
   async checkForUpdate(): Promise<UpdateInfo> {
-    const empty = {
-      hasUpdate: false, needsReinstall: false,
-      latestVersion: '', latestVersionCode: 0,
-      currentVersion: this.currentVersion, currentVersionCode: this.currentVersionCode,
-      totalSize: 0, manifest: null,
-    }
-    if (!this.isNative) return empty
-
+    console.log('[Update] checkForUpdate start, isNative:', this.isNative, 'currentVersionCode:', this.currentVersionCode)
     this.setState('checking')
 
     try {
@@ -120,20 +123,28 @@ class UpdateManager {
       const manifestResp = await fetch(`${API_BASE_URL}/update/manifest.json`)
       if (!manifestResp.ok) {
         this.setState('idle')
-        return empty
+        return { hasUpdate: false, needsApkUpdate: false, latestVersion: '', latestVersionCode: 0,
+          currentVersion: this.currentVersion, currentVersionCode: this.currentVersionCode,
+          totalSize: 0, manifest: null }
       }
 
       const remoteManifest: UpdateManifest = await manifestResp.json()
+      console.log('[Update] remote versionCode:', remoteManifest.versionCode, 'local:', this.currentVersionCode)
       const totalSize = Object.values(remoteManifest.files).reduce((s, f) => s + f.size, 0)
 
       // 以 versionCode 为唯一更新判断依据
       const hasUpdate = (remoteManifest.versionCode || 0) > this.currentVersionCode
 
+      // versionCode 低于 minVersionCode → 需要下载完整 APK（原生代码有差异）
+      const needsApkUpdate = hasUpdate
+        && this.currentVersionCode > 0
+        && this.currentVersionCode < (remoteManifest.minVersionCode || 0)
+
       this.setState(hasUpdate ? 'available' : 'idle')
 
       return {
         hasUpdate,
-        needsReinstall: remoteManifest.needsReinstall || false,
+        needsApkUpdate,
         latestVersion: remoteManifest.version,
         latestVersionCode: remoteManifest.versionCode || 0,
         currentVersion: this.currentVersion,
@@ -143,7 +154,9 @@ class UpdateManager {
       }
     } catch {
       this.setState('idle')
-      return empty
+      return { hasUpdate: false, needsApkUpdate: false, latestVersion: '', latestVersionCode: 0,
+        currentVersion: this.currentVersion, currentVersionCode: this.currentVersionCode,
+        totalSize: 0, manifest: null }
     }
   }
 
@@ -162,11 +175,11 @@ class UpdateManager {
     const totalBytes = Object.values(manifest.files).reduce((s, f) => s + f.size, 0)
 
     try {
-      onProgress({ percent: 0, loadedBytes: 0, totalBytes, currentFile: '正在下载更新包...' })
+      onProgress({ percent: 0, loadedBytes: 0, totalBytes, currentFile: '正在下载...' })
 
       // 流式下载 www.zip，实时上报进度
       const response = await fetch(this.apkDownloadUrl, { signal: this.abortController.signal })
-      if (!response.ok) throw new Error(`下载更新包失败 (HTTP ${response.status})`)
+      if (!response.ok) throw new Error(`下载失败 (HTTP ${response.status})`)
 
       const contentLength = Number(response.headers.get('content-length')) || 0
       const reader = response.body!.getReader()
@@ -180,10 +193,10 @@ class UpdateManager {
         downloaded += value.length
         if (contentLength > 0) {
           onProgress({
-            percent: Math.round((downloaded / contentLength) * 100),
+            percent: Math.round((downloaded / contentLength) * 50),
             loadedBytes: downloaded,
             totalBytes: contentLength,
-            currentFile: '正在下载更新包...',
+            currentFile: '正在下载...',
           })
         }
       }
@@ -195,14 +208,16 @@ class UpdateManager {
         if (this.abortController.signal.aborted) throw new Error('更新已取消')
 
         // 增量：SHA256 一致的跳过
-        const result = await AppUpdate.getFileHash({ path: filePath })
-        if (result.exists && result.sha256 === fileInfo.sha256) {
-          loadedBytes += fileInfo.size
-          continue
-        }
+        try {
+          const result = await AppUpdate.getFileHash({ path: filePath })
+          if (result.exists && result.sha256 === fileInfo.sha256) {
+            loadedBytes += fileInfo.size
+            continue
+          }
+        } catch { /* file doesn't exist, write it */ }
 
         onProgress({
-          percent: totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : 0,
+          percent: 50 + Math.round((loadedBytes / totalBytes) * 50),
           loadedBytes, totalBytes, currentFile: filePath,
         })
 
@@ -214,7 +229,7 @@ class UpdateManager {
         loadedBytes += fileInfo.size
 
         onProgress({
-          percent: Math.round((loadedBytes / totalBytes) * 100),
+          percent: 50 + Math.round((loadedBytes / totalBytes) * 50),
           loadedBytes, totalBytes, currentFile: filePath,
         })
       }
@@ -224,8 +239,7 @@ class UpdateManager {
       this.currentVersion = manifest.version
       this.currentVersionCode = manifest.versionCode || 0
 
-      // 清除 WebView 缓存并强制重载，确保新版本生效
-      onProgress({ percent: 100, loadedBytes: totalBytes, totalBytes, currentFile: '正在应用更新...' })
+      // 清除 WebView 缓存并强制重载
       await AppUpdate.clearCacheAndReload()
 
       this.setState('completed')
@@ -273,14 +287,13 @@ class UpdateManager {
         })
       }
 
-      // 写入 APK 到内部存储的 apk/ 目录
+      // 写入 APK 到内部存储
       const apkRelativePath = 'apk/update.apk'
       const apkBase64 = await blobToBase64(new Blob(chunks as BlobPart[]))
       await AppUpdate.writeFile({ path: apkRelativePath, content: apkBase64 })
 
       onProgress({ percent: 95, loadedBytes: downloaded, totalBytes: contentLength, currentFile: '正在启动安装...' })
 
-      // installApk 会对相对路径自动查找 filesDir/public/ 下
       await AppUpdate.installApk({ path: apkRelativePath })
 
       onProgress({ percent: 100, loadedBytes: downloaded, totalBytes: contentLength, currentFile: '请在安装界面确认' })

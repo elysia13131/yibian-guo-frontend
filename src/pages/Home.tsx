@@ -70,7 +70,7 @@ const Home = () => {
   const [overview, setOverview] = useState<LearningOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [popularDocs, setPopularDocs] = useState<PopularDocument[]>([])
-  const { data: publicDocuments } = usePublicDocuments()
+  const { data: publicDocuments, isLoading: publicDocsLoading } = usePublicDocuments()
   const togglePublicMutation = useTogglePublicStatus()
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [modalAction, setModalAction] = useState('进行此操作')
@@ -430,7 +430,17 @@ const Home = () => {
               )}
             </div>
 
-            {!publicDocuments || Object.keys(publicDocuments).length === 0 ? (
+            {publicDocsLoading ? (
+              <motion.div
+                className="bg-white/80 backdrop-blur-sm rounded-2xl p-10 text-center border border-stone-100"
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
+                viewport={{ once: true }}
+              >
+                <div className="animate-spin w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full mx-auto mb-3" />
+                <p className="text-stone-400">加载公共文档库...</p>
+              </motion.div>
+            ) : !publicDocuments || Object.keys(publicDocuments).length === 0 ? (
               <motion.div
                 className="bg-white/80 backdrop-blur-sm rounded-2xl p-10 text-center border border-stone-100"
                 initial={{ opacity: 0 }}

@@ -110,6 +110,7 @@ public class AppUpdatePlugin extends Plugin {
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
 
+                // 1) 旧版 appassets 协议 (兼容)
                 if (url.contains(ASSET_DOMAIN) && url.contains(ASSET_PATH_PREFIX)) {
                     String relativePath = url.substring(url.indexOf(ASSET_PATH_PREFIX) + ASSET_PATH_PREFIX.length());
                     File updatedFile = new File(getContext().getFilesDir(), PUBLIC_DIR + "/" + relativePath);
@@ -126,6 +127,32 @@ public class AppUpdatePlugin extends Plugin {
                         } catch (IOException e) {
                             Log.w(TAG, "Failed to read updated file: " + updatedFile, e);
                         }
+                    }
+                }
+
+                // 2) Capacitor 6 localhost 协议
+                if (url.contains("localhost")) {
+                    try {
+                        java.net.URI uri = new java.net.URI(url);
+                        String path = uri.getPath(); // e.g. "/assets/index.js" or "/index.html"
+                        if (path != null && path.startsWith("/")) {
+                            path = path.substring(1); // relative path matching manifest keys
+                        }
+                        if (path != null && !path.isEmpty()) {
+                            File updatedFile = new File(getContext().getFilesDir(), PUBLIC_DIR + "/" + path);
+                            if (updatedFile.exists() && updatedFile.isFile()) {
+                                String mimeType = getMimeType(path);
+                                WebResourceResponse response = new WebResourceResponse(mimeType, null, new FileInputStream(updatedFile));
+                                Map<String, String> headers = new HashMap<>();
+                                headers.put("Cache-Control", "no-cache, no-store, must-revalidate");
+                                headers.put("Pragma", "no-cache");
+                                headers.put("Expires", "0");
+                                response.setResponseHeaders(headers);
+                                return response;
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "Failed to parse URL: " + url, e);
                     }
                 }
 
@@ -290,10 +317,11 @@ public class AppUpdatePlugin extends Plugin {
         try {
             WebView webView = getBridge().getWebView();
             if (webView != null) {
-                webView.clearCache(true);
-                Log.i(TAG, "WebView cache cleared");
-                webView.post(() -> webView.reload());
-                Log.i(TAG, "WebView reloading");
+                webView.post(() -> {
+                    webView.clearCache(true);
+                    webView.reload();
+                });
+                Log.i(TAG, "WebView cache clear + reload scheduled");
             }
             call.resolve();
         } catch (Exception e) {

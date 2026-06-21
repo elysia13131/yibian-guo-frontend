@@ -311,6 +311,7 @@ export default function DocumentReaderPage() {
   const contentContainerRef = useRef<HTMLDivElement>(null)
 
   const renderContent = (content: string) => {
+    const mdImgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g
     const tableImgRegex = /\[表格图片:([^\]]+)\]/g
     const imgRegex = /\[图片:([^\]]+)\]/g
     const tableTextRegex = /\[表格开始\]([\s\S]*?)\[表格结束\]/g
@@ -322,6 +323,9 @@ export default function DocumentReaderPage() {
     const allMatches: { type: string, match: RegExpExecArray }[] = []
     
     let m
+    while ((m = mdImgRegex.exec(content)) !== null) {
+      allMatches.push({ type: 'mdImg', match: m })
+    }
     while ((m = imgRegex.exec(content)) !== null) {
       allMatches.push({ type: 'img', match: m })
     }
@@ -342,7 +346,25 @@ export default function DocumentReaderPage() {
         keyIndex++
       }
 
-      if (type === 'img' || type === 'tableImg') {
+      if (type === 'mdImg') {
+        const imgPath = match[2]
+        const altText = match[1] || '图片'
+        // 如果是完整 URL 直接使用，否则加 API_BASE_URL 前缀
+        const src = imgPath.startsWith('http') ? imgPath : `${import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'}/${imgPath}`
+        parts.push(
+          <div key={`mdimg-${keyIndex}`} className="my-4 overflow-x-auto">
+            <img
+              src={src}
+              alt={altText}
+              className="max-w-full h-auto border border-gray-300 dark:border-gray-600 rounded-lg"
+              onError={(e) => {
+                console.error(`Markdown图片加载失败:`, imgPath)
+                e.currentTarget.style.display = 'none'
+              }}
+            />
+          </div>
+        )
+      } else if (type === 'img' || type === 'tableImg') {
         let imgPath = match[1]
         // 规范化路径分隔符（Windows 后端可能产生反斜杠）
         imgPath = imgPath.replace(/\\/g, '/').replace(/^\.\//, '')
@@ -614,7 +636,7 @@ export default function DocumentReaderPage() {
     setLoadingAnalysis(prev => new Set(prev).add(chapterId))
     try {
       const token = localStorage.getItem('token')
-      const baseUrl = import.meta.env.DEV ? 'http://localhost:8080' : ''
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'
       const response = await fetch(`${baseUrl}/api/v1/analysis/analyze-question-stream`, {
         method: 'POST',
         headers: {
@@ -1012,16 +1034,23 @@ export default function DocumentReaderPage() {
           knowledge_points: [],
           analysis: '',
           answer: null,
-          related_questions: result.results?.filter((r: any) => {
-            if (r.metadata?.category !== 'question') return false
-            if (r.metadata?.title === chapter.title) return false
-            return true
-          }).map((r: any) => ({
-            id: r.id,
-            content: r.metadata?.full_content || r.content,
-            distance: r.distance,
-            metadata: r.metadata
-          })) || [],
+          related_questions: (() => {
+            const seen = new Set<string>()
+            return result.results?.filter((r: any) => {
+              if (r.metadata?.category !== 'question') return false
+              if (r.metadata?.title === chapter.title) return false
+              // 去重：按 document_id + title + content 前200字哈希
+              const dedupKey = `${r.metadata?.document_id || ''}|${r.metadata?.title || ''}|${(r.metadata?.full_content || r.content || '').slice(0, 200)}`
+              if (seen.has(dedupKey)) return false
+              seen.add(dedupKey)
+              return true
+            }).map((r: any) => ({
+              id: r.id,
+              content: r.metadata?.full_content || r.content,
+              distance: r.distance,
+              metadata: r.metadata
+            })) || []
+          })(),
           related_paragraphs: result.results?.filter((r: any) => {
             if (r.metadata?.category !== 'paragraph') return false
             const sameChapter = r.metadata?.chapter_order === chapter.order_index && r.metadata?.document_id === String(chapter.document_id)
@@ -1295,6 +1324,15 @@ export default function DocumentReaderPage() {
     } catch (e) {
       console.error('导出思维导图PDF失败:', e)
     }
+  }
+
+  const expandAllMindmap = () => {
+    if (!markmapInstanceRef.current || !mindmapData) return
+    const mm = markmapInstanceRef.current
+    const transformedData = transformMindmapData(mindmapData)
+    if (!transformedData) return
+    mm.setData(transformedData, { initialExpandLevel: 999 })
+    mm.fit()
   }
 
   const transformMindmapData = (data: any): any => {
@@ -1846,12 +1884,12 @@ export default function DocumentReaderPage() {
                       {mindmapData ? (
                         <>
                           <button
-                            onClick={exportMindmapAsPDF}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
-                            title="导出PDF（手机查看推荐）"
+                            onClick={expandAllMindmap}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                            title="展开所有节点"
                           >
-                            <FileText size={16} />
-                            导出 PDF
+                            <ChevronDown size={16} />
+                            展开全部
                           </button>
                           <button
                             onClick={regenerateMindmap}
@@ -1862,6 +1900,7 @@ export default function DocumentReaderPage() {
                             <RefreshIcon size={16} className={isGeneratingMindmap ? 'animate-spin' : ''} />
                             {isGeneratingMindmap ? '生成中...' : '重新生成'}
                           </button>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">仅限文档上传者</span>
                         </>
                       ) : (
                         <button
@@ -2312,7 +2351,9 @@ interface SplitChapterModalProps {
 
 function SplitChapterModal({ chapterId, chapters, onClose }: SplitChapterModalProps) {
   const chapter = chapters.find(c => c.id === chapterId)
-  const [lines] = useState(chapter?.content.split('\n') || [])
+  // 统一换行符，和 Python len() 对齐
+  const rawContent = (chapter?.content || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const [lines] = useState(rawContent.split('\n'))
   const [selectedLines, setSelectedLines] = useState<Set<number>>(new Set())
   const [isSplitting, setIsSplitting] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -2360,9 +2401,9 @@ function SplitChapterModal({ chapterId, chapters, onClose }: SplitChapterModalPr
         onClose()
         window.location.reload()
       }, 500)
-    } catch (err) {
+    } catch (err: any) {
       console.error('分割失败:', err)
-      alert('分割失败')
+      alert('分割失败: ' + (err.message || '未知错误'))
       setIsSplitting(false)
       setProgress(0)
     }

@@ -413,7 +413,7 @@ export default function GraphCanvas({
 
     const dt = Math.min(deltaMs / 16, 3)
     const repulsion = 1200
-    const attraction = 0.004
+    const attraction = 0.001
     const centerGravity = 0.002
     const damping = 0.85
     const minEnergy = 0.5

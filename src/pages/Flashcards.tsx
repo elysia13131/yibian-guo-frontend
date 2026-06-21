@@ -50,6 +50,7 @@ export default function Flashcards() {
   const [selectedDocumentTitle, setSelectedDocumentTitle] = useState<string>('')
   const [generating, setGenerating] = useState(false)
   const [maxCards, setMaxCards] = useState(10)
+  const [focusText, setFocusText] = useState('')
   const [isPublic, setIsPublic] = useState(false)
   const [activeTab, setActiveTab] = useState<'review' | 'generate' | 'groups' | 'public' | 'tasks'>('review')
   const [myGroups, setMyGroups] = useState<CardGroup[]>([])
@@ -233,6 +234,7 @@ export default function Flashcards() {
       await api.post<GenerationTask>('/api/v1/flashcards/generate', {
         document_id: selectedDocumentId,
         max_cards: maxCards,
+        focus_text: focusText || undefined,
         is_public: isPublic
       })
 
@@ -558,6 +560,22 @@ export default function Flashcards() {
                 />
                 <p className="mt-1 text-sm text-gray-500">
                   知识点将平均分配到各分块并行生成
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  侧重点（可选）
+                </label>
+                <input
+                  type="text"
+                  value={focusText}
+                  onChange={(e) => setFocusText(e.target.value)}
+                  placeholder="例如：只要选择题、侧重于XX知识点、只要单词翻译题..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <p className="mt-1 text-sm text-gray-400">
+                  此规则优先于所有默认格式要求
                 </p>
               </div>
 

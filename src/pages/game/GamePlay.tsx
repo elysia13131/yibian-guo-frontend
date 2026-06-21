@@ -303,15 +303,26 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
     }
   }, [clearAutoReadTimer])
 
+  // 一次性预加载该存档所有图片（角色立绘、表情、CG、背景）
   const preloadUrls = useMemo(() => {
-    if (!characterMeta) return []
-    const urls = [
-      resolveUrl(characterMeta.portrait_url),
-      ...characterMeta.expressions.map(e => resolveUrl(e)),
-      ...characterMeta.cg_images.map(c => resolveUrl(c)),
-    ]
+    const urls: (string | undefined)[] = []
+    if (characterMeta) {
+      urls.push(
+        resolveUrl(characterMeta.portrait_url),
+        ...characterMeta.expressions.map(e => resolveUrl(e)),
+        ...characterMeta.cg_images.map(c => resolveUrl(c)),
+      )
+    }
+    // 扫描所有section中的图片（CG、背景、立绘）
+    if (storySections) {
+      for (const s of storySections) {
+        urls.push(resolveUrl(s.portrait_url))
+        urls.push(resolveUrl(s.background))
+        if (s.cg_images) urls.push(...s.cg_images.map(c => resolveUrl(c)))
+      }
+    }
     return [...new Set(urls.filter(Boolean))]
-  }, [characterMeta])
+  }, [characterMeta, storySections])
 
   usePreloadImages(preloadUrls)
 
@@ -420,7 +431,11 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
         height: 100%;
       }
       .game-reader-wrapper .__narraleaf_content-player .bg-cover {
+        position: absolute !important;
+        inset: 0 !important;
         background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
       }
       .game-reader-wrapper .__narraleaf_content-player > div:first-child {
         aspect-ratio: unset !important;

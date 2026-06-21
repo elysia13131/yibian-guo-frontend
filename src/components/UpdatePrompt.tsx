@@ -26,7 +26,7 @@ export default function UpdatePrompt() {
     if (!updateInfo?.manifest) return
     setError(null)
     try {
-      if (updateInfo.needsReinstall) {
+      if (updateInfo.needsApkUpdate) {
         await updateManager.downloadAndInstallApk(updateInfo.manifest, setProgress)
       } else {
         await updateManager.downloadUpdate(updateInfo.manifest, setProgress)
@@ -50,36 +50,24 @@ export default function UpdatePrompt() {
 
   if (dismissed) return null
 
-  // needsReinstall 完成提示
-  if (state === 'completed' && updateInfo?.needsReinstall) {
-    return (
-      <div className="fixed bottom-4 right-4 bg-blue-500 text-white px-4 py-3 rounded-lg shadow-lg z-[60] min-w-[280px]">
-        <p className="font-medium">下载完成</p>
-        <p className="text-sm mt-1">请在系统安装界面中确认安装</p>
-        <p className="text-xs mt-2 opacity-80">安装完成后，重新打开即可使用新版本</p>
-        <button onClick={() => setDismissed(true)} className="mt-2 text-xs underline">
-          关闭
-        </button>
-      </div>
-    )
-  }
-
-  // 热更新完成提示
   if (state === 'completed') {
-    return (
-      <div className="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg z-[60]">
-        <p className="font-medium">更新完成</p>
-        <p className="text-sm">应用将自动重启</p>
-        <button onClick={() => setDismissed(true)} className="mt-2 text-xs underline">
-          关闭
-        </button>
-      </div>
-    )
+    // APK 下载完成：保持一个轻量 DOM 不卸载，避免与系统安装器冲突
+    if (updateInfo?.needsApkUpdate) {
+      return (
+        <div className="fixed bottom-20 right-4 bg-blue-500 text-white px-4 py-3 rounded-lg shadow-lg z-[100] min-w-[280px]">
+          <p className="font-medium">下载完成</p>
+          <p className="text-sm mt-1">请在系统安装界面中确认安装</p>
+          <p className="text-xs mt-2 opacity-80">安装完成后，重新打开即可使用新版本</p>
+          <button onClick={() => setDismissed(true)} className="mt-2 text-xs underline">关闭</button>
+        </div>
+      )
+    }
+    return null
   }
 
   if (state === 'error') {
     return (
-      <div className="fixed bottom-4 right-4 bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg z-[60] min-w-[250px]">
+      <div className="fixed bottom-20 right-4 bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg z-[100] min-w-[250px]">
         <p className="font-medium">更新失败</p>
         <p className="text-sm mt-1">{error || '请稍后重试'}</p>
         <div className="mt-2 flex gap-2">
@@ -98,10 +86,8 @@ export default function UpdatePrompt() {
 
   if (state === 'downloading' && progress) {
     return (
-      <div className="fixed bottom-4 right-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-lg shadow-lg z-[60] min-w-[300px]">
-        <p className="font-medium text-gray-900 dark:text-white">
-          {updateInfo?.needsReinstall ? '正在下载安装包...' : '正在下载更新...'}
-        </p>
+      <div className="fixed bottom-20 right-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-lg shadow-lg z-[100] min-w-[300px]">
+        <p className="font-medium text-gray-900 dark:text-white">正在下载更新...</p>
         <div className="mt-2 w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
           <div
             className="bg-blue-500 h-2 rounded-full transition-all"
@@ -122,23 +108,26 @@ export default function UpdatePrompt() {
   }
 
   if (updateInfo?.hasUpdate && state === 'available') {
-    const isReinstall = updateInfo.needsReinstall
     return (
-      <div className="fixed bottom-4 right-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-lg shadow-lg z-[60] min-w-[300px]">
+      <div className="fixed bottom-20 right-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-lg shadow-lg z-[100] min-w-[300px]">
         <p className="font-medium text-gray-900 dark:text-white">
           发现新版本 v{updateInfo.latestVersion}
         </p>
-        <p className="text-sm text-gray-500 mt-1">
-          {isReinstall
-            ? '本次更新包含应用改动，需下载安装包'
-            : `大小约 ${(updateInfo.totalSize / 1024 / 1024).toFixed(1)} MB`}
-        </p>
+        {updateInfo.needsApkUpdate ? (
+          <p className="text-sm text-orange-500 mt-1">
+            需要更新完整应用（含原生模块变更），约 63 MB
+          </p>
+        ) : (
+          <p className="text-sm text-gray-500 mt-1">
+            增量更新约 {(updateInfo.totalSize / 1024 / 1024).toFixed(1)} MB
+          </p>
+        )}
         <div className="mt-2 flex gap-2">
           <button
             onClick={handleUpdate}
             className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
           >
-            {isReinstall ? '下载并安装' : '立即更新'}
+            {updateInfo.needsApkUpdate ? '下载 APK' : '立即更新'}
           </button>
           <button
             onClick={handleDismiss}

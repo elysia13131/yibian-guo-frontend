@@ -1,11 +1,9 @@
-import { Routes, Route, useLocation, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { AnimatePresence } from 'motion/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ApiKeyProvider } from './contexts/ApiKeyContext'
 import { AgentSessionProvider } from './contexts/AgentSessionContext'
-import { useEffect } from 'react'
-import { Capacitor } from '@capacitor/core'
 import Home from './pages/Home'
 import Analytics from './pages/Analytics'
 import Profile from './pages/Profile'
@@ -29,10 +27,7 @@ import GameCharacterManage from './pages/game/GameCharacterManage'
 import BottomNav from './components/BottomNav'
 import LoginPrompt from './components/LoginPrompt'
 import UpdatePrompt from './components/UpdatePrompt'
-import Toast from './components/Toast'
-import Live2DOverlay from './components/Live2DOverlay'
 import LandingPage from './pages/LandingPage'
-import CompanionPage from './pages/Companion'
 import DocumentGraph from './pages/DocumentGraph'
 import KnowledgeGraphPage from './pages/KnowledgeGraphPage'
 
@@ -68,31 +63,11 @@ function LoginPromptWrapper({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const location = useLocation()
-  const navigate = useNavigate()
   const { isAuthenticated, loading } = useAuth()
   const isAuthRoute = ['/auth', '/register', '/reset-password'].includes(location.pathname)
-  const isFullPageRoute = ['/documents', '/documents/', '/document-graph', '/knowledge-graph', '/game', '/game/', '/experiment', '/agent', '/landing', '/test', '/companion'].some(path =>
+  const isFullPageRoute = ['/documents', '/documents/', '/document-graph', '/knowledge-graph', '/game', '/game/', '/experiment', '/agent', '/landing', '/test'].some(path =>
     location.pathname.startsWith(path)
   )
-
-  // 检测外部分享的文件（"用其他应用打开"）
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return
-    const checkShared = async () => {
-      try {
-        const { IntentHandler } = await import('./plugins/IntentHandler')
-        const result = await IntentHandler.getPendingSharedFile()
-        if (result.hasFile && result.path) {
-          navigate('/documents', { state: { sharedFilePath: result.path, sharedFileName: result.name, sharedFileMime: result.mimeType } })
-        }
-      } catch {
-        // 非原生环境或插件未就绪，忽略
-      }
-    }
-    // 延迟检查，等 Capacitor 插件加载完成
-    const timer = setTimeout(checkShared, 500)
-    return () => clearTimeout(timer)
-  }, [])
 
   if (isAuthRoute && isAuthenticated && !loading) {
     return <Navigate to="/" replace />
@@ -132,7 +107,6 @@ function AppContent() {
           <Route path="/knowledge-graph" element={<LoginPromptWrapper><KnowledgeGraphPage /></LoginPromptWrapper>} />
 
           <Route path="/landing" element={<LandingPage />} />
-          <Route path="/companion" element={<LoginPromptWrapper><CompanionPage /></LoginPromptWrapper>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -150,8 +124,6 @@ function App() {
         <ApiKeyProvider>
           <AgentSessionProvider>
             <AppContent />
-            <Toast />
-            <Live2DOverlay />
           </AgentSessionProvider>
         </ApiKeyProvider>
       </AuthProvider>

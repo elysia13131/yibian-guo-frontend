@@ -150,7 +150,7 @@ export default function DocumentGraph() {
   const nodeLevelMeta = (node: GraphNode) => LEVEL_META[node.level || 'L1'] || LEVEL_META.L1
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-white to-stone-50 flex flex-col">
+    <div className="h-screen overflow-hidden bg-gradient-to-br from-stone-50 via-white to-stone-50 flex flex-col">
       {/* 顶部导航 */}
       <header className="bg-white/80 backdrop-blur-md border-b border-stone-200/60 flex-shrink-0 sticky top-0 z-20">
         <div className="flex items-center justify-between h-16 px-6 max-w-screen-2xl mx-auto w-full">

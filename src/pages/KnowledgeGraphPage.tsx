@@ -242,7 +242,7 @@ export default function KnowledgeGraphPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-white to-amber-50 flex flex-col">
+    <div className="h-screen overflow-hidden bg-gradient-to-br from-stone-50 via-white to-amber-50 flex flex-col">
       {/* 顶部导航 */}
       <header className="bg-white/80 backdrop-blur-md border-b border-stone-200/60 flex-shrink-0 sticky top-0 z-20">
         <div className="flex items-center justify-between h-14 px-6 max-w-screen-2xl mx-auto w-full">

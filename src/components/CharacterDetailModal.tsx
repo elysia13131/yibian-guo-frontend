@@ -115,15 +115,17 @@ export default function CharacterDetailModal({ char, open, onClose, canEdit, onE
               </div>
             )}
 
-            {/* prompt */}
-            {char.prompt && (
-              <div className="mb-3">
-                <p className="text-xs font-medium text-gray-500 mb-1">角色描述</p>
+            {/* 角色描述 */}
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-500 mb-1">角色描述</p>
+              {char.description ? (
                 <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-xl p-3 whitespace-pre-wrap line-clamp-4">
-                  {char.prompt}
+                  {char.description}
                 </p>
-              </div>
-            )}
+              ) : (
+                <p className="text-sm text-gray-400 italic bg-gray-50 rounded-xl p-3">暂无描述</p>
+              )}
+            </div>
 
             {/* 表情 */}
             {char.expressions && char.expressions.length > 0 && (

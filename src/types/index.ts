@@ -206,6 +206,7 @@ export interface GenerationTask {
   processed_chunks: number
   total_cards: number
   max_cards: number
+  focus_text: string | null
   error_message: string | null
   created_at: string
 }
