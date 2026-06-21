@@ -132,6 +132,7 @@ interface CharacterMeta {
   speaker_id?: string
   voice_status?: string
   voice_sample_url?: string
+  is_default?: boolean
 }
 
 function extractCharacterMeta(sections: GameSection[]): { meta: CharacterMeta | null; storySections: GameSection[] } {
@@ -146,6 +147,7 @@ function extractCharacterMeta(sections: GameSection[]): { meta: CharacterMeta | 
       speaker_id: sections[0].speaker_id || undefined,
       voice_status: sections[0].voice_status || undefined,
       voice_sample_url: sections[0].voice_sample_url || undefined,
+      is_default: sections[0].is_default || undefined,
     }
     return { meta, storySections: sections.slice(1) }
   }
@@ -1294,7 +1296,7 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
     if (!cleaned) return
     const s = speed ?? ttsSpeed
     const reqId = ++ttsRequestIdRef.current
-    synthesizeTts(text, characterMeta.speaker_id, { speedRatio: s }).then(blob => {
+    synthesizeTts(text, characterMeta.speaker_id, { speedRatio: s, isDefaultCharacter: !!characterMeta.is_default }).then(blob => {
       if (reqId !== ttsRequestIdRef.current) return
       const url = URL.createObjectURL(blob)
       const audio = new Audio(url)
@@ -1431,7 +1433,7 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
         for (let i = 1; i <= lookaheadCount; i++) {
           const next = regularSections[currentIdx + i]
           if (next?.text) {
-            synthesizeTts(next.text, characterMeta.speaker_id, { speedRatio: ttsSpeed }).catch(() => {})
+            synthesizeTts(next.text, characterMeta.speaker_id, { speedRatio: ttsSpeed, isDefaultCharacter: !!characterMeta.is_default }).catch(() => {})
           }
         }
       }

@@ -1,6 +1,7 @@
 const VOLCANO_API_URL = 'https://openspeech.bytedance.com/api/v1/tts'
 const CACHE_PREFIX = 'tts_cache_'
 const API_KEY_STORAGE_KEY = 'tts_api_key'
+const SYSTEM_TTS_API_KEY = '242625ef-dc29-4136-9515-819d7f61242b'
 
 let cachedApiKey: string | null = null
 
@@ -50,10 +51,12 @@ export async function synthesizeTts(
   options?: {
     encoding?: string
     speedRatio?: number
+    isDefaultCharacter?: boolean
   },
 ): Promise<Blob> {
   const encoding = options?.encoding || 'mp3'
   const speedRatio = options?.speedRatio || 1.0
+  const isDefault = options?.isDefaultCharacter || false
   const cacheKey = getCacheKey(text, speakerId, encoding, speedRatio)
 
   const cached = sessionStorage.getItem(cacheKey)
@@ -64,15 +67,15 @@ export async function synthesizeTts(
     return new Blob([bytes], { type: `audio/${encoding === 'mp3' ? 'mpeg' : encoding}` })
   }
 
-  return synthesizeDirect(text, speakerId, { encoding, speedRatio, cacheKey })
+  return synthesizeDirect(text, speakerId, { encoding, speedRatio, cacheKey, isDefault })
 }
 
 async function synthesizeDirect(
   text: string,
   speakerId: string,
-  options: { encoding: string; speedRatio: number; cacheKey: string },
+  options: { encoding: string; speedRatio: number; cacheKey: string; isDefault: boolean },
 ): Promise<Blob> {
-  const apiKey = await ensureApiKey()
+  const apiKey = options.isDefault ? SYSTEM_TTS_API_KEY : await ensureApiKey()
   const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
   const response = await fetch(VOLCANO_API_URL, {
