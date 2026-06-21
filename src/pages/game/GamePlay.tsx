@@ -204,6 +204,8 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
   const [cgFade, setCgFade] = useState(false)
   const [showRotatePrompt, setShowRotatePrompt] = useState(false)
   const bgmRef = useRef<HTMLAudioElement | null>(null)
+  const toolbarRef = useRef<HTMLDivElement | null>(null)
+  const [toolbarBottom, setToolbarBottom] = useState(200)
   const [bgmSrc, setBgmSrc] = useState('')
   const [bgmMuted, setBgmMuted] = useState(() => localStorage.getItem('game_bgm_muted') === 'true')
   const [ttsSpeed, setTtsSpeed] = useState(() => {
@@ -327,6 +329,31 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
   }, [characterMeta, storySections])
 
   usePreloadImages(preloadUrls)
+
+  // 动态追踪对话框位置，让工具栏紧贴对话框顶部
+  useEffect(() => {
+    const updatePosition = () => {
+      const dialog = document.querySelector<HTMLElement>('[data-element-type="dialog"]')
+      if (!dialog) return
+      const dialogRect = dialog.getBoundingClientRect()
+      const bottom = window.innerHeight - dialogRect.top + 8 // 8px 间距
+      setToolbarBottom(Math.max(0, bottom))
+    }
+    updatePosition()
+    const observer = new ResizeObserver(updatePosition)
+    const mutationObserver = new MutationObserver(updatePosition)
+    const dialog = document.querySelector<HTMLElement>('[data-element-type="dialog"]')
+    if (dialog) {
+      observer.observe(dialog)
+      mutationObserver.observe(dialog, { childList: true, subtree: true, characterData: true })
+    }
+    window.addEventListener('resize', updatePosition)
+    return () => {
+      observer.disconnect()
+      mutationObserver.disconnect()
+      window.removeEventListener('resize', updatePosition)
+    }
+  }, [ended, currentSectionIndex])
 
   const endingSection = useMemo(() => {
     return storySections.find(s => s.type === 'ending') || null
@@ -649,21 +676,19 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
       }
       .reader-toolbar {
         position: absolute;
-        bottom: calc(env(safe-area-inset-bottom) + 160px);
-        bottom: 200px;
         right: 10%;
         z-index: 150;
         display: flex;
         align-items: center;
         gap: 4px;
         padding: 6px 10px;
-        background: color-mix(in srgb, var(--theme-primary) 85%, white);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        border: 1px solid var(--theme-primary);
+        background: rgba(255, 255, 255, 0.25);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
         border-radius: 14px;
         pointer-events: auto;
-        box-shadow: 0 2px 12px color-mix(in srgb, var(--theme-primary) 20%, transparent);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
       }
       .reader-toolbar button {
         min-width: 52px;
@@ -2052,7 +2077,7 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
       )}
 
       {!ended && (
-        <div className="reader-toolbar">
+        <div className="reader-toolbar" ref={toolbarRef} style={{ bottom: toolbarBottom }}>
           <button onClick={handleAsk} title="举手提问">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M7 21h10" />
