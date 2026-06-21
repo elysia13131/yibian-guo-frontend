@@ -348,7 +348,7 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
       observer.disconnect()
       window.removeEventListener('resize', updatePosition)
     }
-  }, [ended, currentSectionIndex])
+  }, [ended])
 
   const endingSection = useMemo(() => {
     return storySections.find(s => s.type === 'ending') || null
