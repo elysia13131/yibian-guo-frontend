@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { gameApi, GameSaveListItem } from '../../api'
+import { gameApi, characterApi, GameSaveListItem } from '../../api'
 import { useGameWebSocket } from '../../hooks/useGameWebSocket'
 
 function getCurrentUserId(): number | null {
@@ -184,6 +184,109 @@ function SaveCard({
           )}
         </>
       )}
+
+      {/* 语音配置弹窗（借阅存档后如果角色有语音样本但未配置音色ID） */}
+      {voiceDialogVisible && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+            <div className="px-5 pt-6 pb-4">
+              {!showSpeakerInput ? (
+                <>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8.5v7a4.5 4.5 0 0 0 2.5-3.5zM14 3.23v2.06a7.5 7.5 0 0 1 0 13.42v2.06a9.5 9.5 0 0 0 0-17.54z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-800">提供 TTS 语音</h3>
+                      <p className="text-xs text-gray-500">此存档的角色提供了语音样本</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-4">
+                    角色 <strong className="text-pink-600">{voiceDialogCharName}</strong> 提供了语音克隆样本。
+                    是否前往火山引擎控制台获取音色 ID？
+                  </p>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => window.open('https://console.volcengine.com/speech/new/clone', '_blank')}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-emerald-400 to-emerald-500 text-white font-medium rounded-xl hover:opacity-90 transition"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      去火山引擎克隆音色
+                    </button>
+                    <button
+                      onClick={() => { setShowSpeakerInput(true); setSpeakerIdInput('') }}
+                      className="w-full py-2.5 bg-gray-100 text-gray-600 font-medium rounded-xl hover:bg-gray-200 transition"
+                    >
+                      已有音色 ID
+                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setVoiceDialogVisible(false) }}
+                        className="flex-1 py-2 text-gray-400 text-sm hover:text-gray-500 transition border border-gray-200 rounded-xl"
+                      >
+                        稍后再说
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8.5v7a4.5 4.5 0 0 0 2.5-3.5zM14 3.23v2.06a7.5 7.5 0 0 1 0 13.42v2.06a9.5 9.5 0 0 0 0-17.54z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-800">填写音色 ID</h3>
+                      <p className="text-xs text-gray-500">输入你在火山引擎获取到的音色 ID</p>
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value={speakerIdInput}
+                    onChange={e => setSpeakerIdInput(e.target.value)}
+                    placeholder="S_xxxxxxxx"
+                    className="w-full px-4 py-3 rounded-xl border border-pink-200 text-pink-700 placeholder-pink-300 focus:outline-none focus:border-pink-400 focus:ring-1 focus:ring-pink-300 transition-all mb-3"
+                  />
+                  <p className="text-xs text-gray-400 mb-4">
+                    可在<strong>火山引擎控制台 → 声音复刻</strong>中获取
+                  </p>
+                  <div className="space-y-2">
+                    <button
+                      onClick={async () => {
+                        if (!speakerIdInput.trim() || !voiceDialogCharId) return
+                        setVoiceDialogVisible(false)
+                        setShowSpeakerInput(false)
+                        try {
+                          await characterApi.setSpeakerId(voiceDialogCharId, speakerIdInput.trim())
+                        } catch {}
+                        setSpeakerIdInput('')
+                        alert('借阅成功！')
+                        loadSaves()
+                      }}
+                      disabled={!speakerIdInput.trim()}
+                      className="w-full py-2.5 bg-gradient-to-r from-pink-400 to-pink-500 text-white font-medium rounded-xl hover:opacity-90 transition disabled:opacity-40"
+                    >
+                      确认借阅
+                    </button>
+                    <button
+                      onClick={() => { setShowSpeakerInput(false); setSpeakerIdInput('') }}
+                      className="w-full py-2 text-gray-400 text-sm hover:text-gray-500 transition"
+                    >
+                      返回
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -198,6 +301,13 @@ export default function GameSaves() {
   const [borrowModalVisible, setBorrowModalVisible] = useState(false)
   const [borrowUid, setBorrowUid] = useState('')
   const [borrowing, setBorrowing] = useState(false)
+  // 借阅后语音配置弹窗
+  const [voiceDialogVisible, setVoiceDialogVisible] = useState(false)
+  const [voiceDialogCharName, setVoiceDialogCharName] = useState('')
+  const [voiceDialogCharId, setVoiceDialogCharId] = useState<number | null>(null)
+  const [voiceDialogSaveId, setVoiceDialogSaveId] = useState<number | null>(null)
+  const [showSpeakerInput, setShowSpeakerInput] = useState(false)
+  const [speakerIdInput, setSpeakerIdInput] = useState('')
 
   useGameWebSocket({
     onSaveUpdate: () => { loadSaves() },
@@ -307,10 +417,26 @@ export default function GameSaves() {
     if (!borrowUid.trim()) return
     setBorrowing(true)
     try {
-      await gameApi.borrowSave(borrowUid.trim())
+      const result = await gameApi.borrowSave(borrowUid.trim())
       setBorrowModalVisible(false)
       setBorrowUid('')
+      // 检查借阅的存档是否包含有语音样本但未配置音色ID的角色
+      try {
+        const detail = await gameApi.getSaveDetail(result.id)
+        const charMeta = detail.sections?.find(s => s.type === '_character_meta' || (s.portrait_url && s.character_name))
+        if (charMeta && charMeta.voice_sample_url && !charMeta.speaker_id && !charMeta.is_default) {
+          setVoiceDialogCharName(charMeta.character_name || '未知角色')
+          setVoiceDialogCharId(charMeta.character_id || null)
+          setVoiceDialogSaveId(result.id)
+          setShowSpeakerInput(false)
+          setSpeakerIdInput('')
+          setVoiceDialogVisible(true)
+          loadSaves()
+          return
+        }
+      } catch { /* 获取详情失败，不阻塞 */ }
       alert('借阅成功！')
+      loadSaves()
     } catch (error: any) {
       alert(error.message || '借阅失败，请检查 UID 是否正确')
     } finally {

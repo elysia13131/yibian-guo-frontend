@@ -258,6 +258,7 @@ export interface GameSection {
   speaker_id?: string
   voice_status?: string
   voice_sample_url?: string
+  is_default?: boolean
   question?: GameQuestion
   background?: string
 }
