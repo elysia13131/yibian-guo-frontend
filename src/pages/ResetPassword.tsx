@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, MailCheck } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, MailCheck, User } from 'lucide-react'
 import { motion } from 'motion/react'
 import PageTransition from '../components/PageTransition'
 
@@ -12,6 +12,7 @@ export default function ResetPasswordPage() {
   const [step, setStep] = useState<'email' | 'verify' | 'reset'>('email')
   const [email, setEmail] = useState('')
   const [verificationCode, setVerificationCode] = useState('')
+  const [newUsername, setNewUsername] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -93,6 +94,11 @@ export default function ResetPasswordPage() {
     e.preventDefault()
     setError('')
 
+    if (!newUsername.trim()) {
+      setError('请输入用户名')
+      return
+    }
+
     if (newPassword !== confirmPassword) {
       setError('两次输入的密码不一致')
       return
@@ -112,20 +118,21 @@ export default function ResetPasswordPage() {
         body: JSON.stringify({
           email,
           verification_code: verificationCode,
-          new_password: newPassword
+          new_password: newPassword,
+          new_username: newUsername.trim(),
         }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.detail || '重置密码失败')
+        throw new Error(data.detail || '重置失败')
       }
 
-      alert('密码重置成功，请使用新密码登录')
+      alert('重置成功，请使用新用户名和密码登录')
       navigate('/auth')
     } catch (err: any) {
-      setError(err.message || '重置密码失败，请重试')
+      setError(err.message || '重置失败，请重试')
     } finally {
       setLoading(false)
     }
@@ -137,6 +144,7 @@ export default function ResetPasswordPage() {
       setVerificationCode('')
     } else if (step === 'reset') {
       setStep('verify')
+      setNewUsername('')
       setNewPassword('')
       setConfirmPassword('')
     } else {
@@ -164,12 +172,12 @@ export default function ResetPasswordPage() {
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-gray-900">
-              {step === 'email' ? '找回密码' : (step === 'verify' ? '验证邮箱' : '设置新密码')}
+              {step === 'email' ? '找回用户名或密码' : (step === 'verify' ? '验证邮箱' : '设置新用户名和密码')}
             </h1>
             <p className="text-gray-500 mt-2">
               {step === 'email' ? '输入您注册的邮箱地址' :
                step === 'verify' ? '输入发送至您邮箱的验证码' :
-               '设置您的新密码'}
+               '设置您的新用户名和密码'}
             </p>
           </div>
 
@@ -255,6 +263,21 @@ export default function ResetPasswordPage() {
           {step === 'reset' && (
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">新用户名</label>
+                <div className="relative">
+                  <User size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={newUsername}
+                    onChange={(e) => setNewUsername(e.target.value)}
+                    required
+                    placeholder="请输入新的用户名"
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                  />
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">新密码</label>
                 <div className="relative">
                   <Lock size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -305,13 +328,13 @@ export default function ResetPasswordPage() {
                 disabled={loading}
                 className="w-full bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {loading ? '重置中...' : '重置密码'}
+                {loading ? '重置中...' : '重置用户名和密码'}
               </button>
             </form>
           )}
 
           <div className="mt-6 text-center text-sm text-gray-500">
-            想起密码了？
+            想起来了？
             <button
               onClick={() => navigate('/auth')}
               className="text-blue-600 hover:text-blue-700 font-medium ml-1"

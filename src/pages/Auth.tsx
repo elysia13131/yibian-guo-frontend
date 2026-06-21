@@ -337,7 +337,7 @@ export default function AuthPage() {
                   onClick={() => navigate('/reset-password')}
                   className="text-sm text-blue-600 hover:text-blue-700 transition"
                 >
-                  忘记密码？
+                  忘记用户名或密码？
                 </button>
               </div>
               <div className="mt-4 text-center text-sm text-gray-500">
