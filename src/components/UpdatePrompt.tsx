@@ -24,6 +24,7 @@ export default function UpdatePrompt() {
 
   const handleUpdate = useCallback(async () => {
     if (!updateInfo?.manifest) return
+    console.log('[UpdatePrompt] handleUpdate called, needsApkUpdate:', updateInfo.needsApkUpdate)
     setError(null)
     try {
       if (updateInfo.needsApkUpdate) {
@@ -31,7 +32,11 @@ export default function UpdatePrompt() {
       } else {
         await updateManager.downloadUpdate(updateInfo.manifest, setProgress)
       }
+      // 如果到这里说明更新没触发（非原生环境等），恢复状态
+      console.log('[UpdatePrompt] downloadUpdate returned without doing anything')
+      setError('当前环境不支持更新，请在 APP 中使用')
     } catch (err: any) {
+      console.error('[UpdatePrompt] update failed:', err)
       if (err.message !== '更新已取消') {
         setError(err.message || '更新失败')
       }

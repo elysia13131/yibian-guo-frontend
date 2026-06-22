@@ -164,7 +164,11 @@ class UpdateManager {
     manifest: UpdateManifest,
     onProgress: (progress: DownloadProgress) => void,
   ): Promise<void> {
-    if (!this.isNative) return
+    console.log('[Update] downloadUpdate called, isNative:', this.isNative)
+    if (!this.isNative) {
+      console.log('[Update] Not native, skipping download')
+      return
+    }
 
     this.setState('downloading')
     this.abortController = new AbortController()
@@ -253,7 +257,11 @@ class UpdateManager {
     manifest: UpdateManifest,
     onProgress: (progress: DownloadProgress) => void,
   ): Promise<void> {
-    if (!this.isNative) return
+    console.log('[Update] downloadAndInstallApk called, isNative:', this.isNative)
+    if (!this.isNative) {
+      console.log('[Update] Not native, skipping APK download')
+      return
+    }
 
     this.setState('downloading')
     this.abortController = new AbortController()
