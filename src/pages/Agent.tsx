@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useApiKeyContext } from '../contexts/ApiKeyContext'
 import { motion, AnimatePresence } from 'motion/react'
-import { ArrowLeft, MessageSquare, Bot, Sparkles, Send, Paperclip, Loader2, X, StopCircle, PanelRightOpen, Plus, History, Zap, Award, BookOpen, ChartColumn, Check, BrainCircuit, ImageIcon, Download, FileText, ExternalLink, Maximize2, Camera } from 'lucide-react'
+import { ArrowLeft, MessageSquare, Bot, Sparkles, Send, Paperclip, Loader2, X, StopCircle, PanelRightOpen, Plus, History, Zap, Award, BookOpen, ChartColumn, Check, BrainCircuit, ImageIcon, Download, FileText, ExternalLink, Maximize2, Camera, AlertTriangle } from 'lucide-react'
 import ParticleField from '../components/ParticleField'
 import AgentHeroGlow from '../components/AgentHeroGlow'
 import AgentBubble from '../components/AgentBubble'
@@ -140,6 +140,7 @@ const Agent = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
   const attachMenuRef = useRef<HTMLDivElement>(null)
+  const [somarkError, setSomarkError] = useState<string | null>(null)
 
 
   const [historyVisible, setHistoryVisible] = useState(false)
@@ -783,8 +784,18 @@ const Agent = () => {
       streamContentRef.current = {}
       setAgentTaskDesc({})
       setThinkingCompleted(false)
-      // Add user message (show only original text, not parsed content)
-      setMessages(prev => [...prev, { id: nextId('u'), role: 'user', content: text || (attachmentsExtra.trim() ? '已上传文件' : '请分析上传的文件') }])
+      // Add user message (show only original text + file previews, not parsed content)
+      const userFiles = pending.length > 0 ? pending.map(a => ({
+        name: a.name,
+        type: a.type,
+        url: a.type === 'image' ? a.previewUrl : '',
+      })) : undefined
+      setMessages(prev => [...prev, {
+        id: nextId('u'),
+        role: 'user' as const,
+        content: text || (attachmentsExtra.trim() ? '已上传文件' : '请分析上传的文件'),
+        files: userFiles,
+      }])
 
       setInput('')
       setCurrentDiscussionTodoId(null)
@@ -928,26 +939,96 @@ const Agent = () => {
     if (e.target) e.target.value = ''
   }
 
+  /** 前端直接读取文档内容，支持 txt/csv/md/xlsx/docx；无法读取返回 null */
+  const tryReadDocumentClient = async (file: File): Promise<string | null> => {
+    const name = file.name
+    const ext = name.split('.').pop()?.toLowerCase() || ''
+    
+    // 纯文本格式：直接读取
+    if (['txt', 'csv', 'md', 'json', 'log', 'xml', 'html', 'htm', 'yaml', 'yml'].includes(ext)) {
+      return file.text()
+    }
+    
+    // Excel：用 xlsx 库解析
+    if (['xlsx', 'xls'].includes(ext)) {
+      try {
+        const XLSX = await import('xlsx')
+        const buf = await file.arrayBuffer()
+        const wb = XLSX.read(buf, { type: 'array' })
+        const sheets = wb.SheetNames.map(sn => {
+          const sheet = wb.Sheets[sn]
+          const text = XLSX.utils.sheet_to_csv(sheet)
+          return `【${sn}】\n${text}`
+        })
+        return sheets.join('\n\n')
+      } catch { return null }
+    }
+    
+    // DOCX：用 mammoth 解析
+    if (ext === 'docx') {
+      try {
+        const mammoth = await import('mammoth')
+        const buf = await file.arrayBuffer()
+        const result = await mammoth.extractRawText({ arrayBuffer: buf })
+        return result.value || null
+      } catch { return null }
+    }
+    
+    // PPTX：尝试用 pptx2json 或 jsZip 提取文本
+    if (ext === 'pptx') {
+      try {
+        const JSZip = await import('jszip')
+        const buf = await file.arrayBuffer()
+        const zip = await JSZip.loadAsync(buf)
+        const slides: string[] = []
+        const slideFiles = Object.keys(zip.files).filter(f => /^ppt\/slides\/slide\d+\.xml$/i.test(f)).sort()
+        for (const sf of slideFiles) {
+          const xml = await zip.file(sf)!.async('text')
+          const texts: string[] = []
+          const tagRegex = /<a:t[^>]*>([^<]*)<\/a:t>/g
+          let m: RegExpExecArray | null
+          while ((m = tagRegex.exec(xml)) !== null) {
+            if (m[1]) texts.push(m[1])
+          }
+          if (texts.length) slides.push(`--- 第${slides.length + 1}页 ---\n${texts.join(' ')}`)
+        }
+        return slides.length ? slides.join('\n\n') : null
+      } catch { return null }
+    }
+    
+    // PDF、DOC、PPT 等无法前端读取
+    return null
+  }
+
   const processAttachment = async (att: PendingAttachment) => {
     try {
       let parsedContent = ''
       if (att.type === 'image') {
         const visionPrompt = '请详细描述这张图片的内容，包括画面中的主要元素、场景、文字信息等关键细节。'
         const modelMode = (localStorage.getItem('agentModelMode') || 'api') as 'api' | 'local'
-        console.log(`[Agent] Parsing image: ${att.name}, mode: ${modelMode}`)
         const result = modelMode === 'api'
           ? await miniCPMApi.understandImage(att.file, undefined, visionPrompt)
           : await visionEngine.understandImage(att.file, undefined, visionPrompt)
         parsedContent = result.description
-        console.log(`[Agent] Image parsed successfully: ${att.name}`)
       } else {
-        const formData = new FormData()
-        formData.append('file', att.file)
-        const res = await fetch('/api/v1/image/upload-parse', { method: 'POST', body: formData })
-        if (!res.ok) throw new Error(`上传失败: ${att.name}`)
-        const data = await res.json()
-        if (!data.success) throw new Error(`解析失败: ${att.name}`)
-        parsedContent = data.markdown
+        // 文档：先尝试前端直接读取内容
+        parsedContent = await tryReadDocumentClient(att.file)
+        if (parsedContent === null) {
+          // 前端无法读取，交给后端（SoMark）
+          const formData = new FormData()
+          formData.append('file', att.file)
+          const res = await fetch('/api/v1/image/upload-parse', { method: 'POST', body: formData })
+          const data = await res.json()
+          if (!data.success) {
+            if (data.need_api_key) {
+              setSomarkError('SoMark API Key 未配置，请在个人设置中配置你的 SoMark API Key，或尝试上传可直读的文档格式（txt/csv/md）。')
+            } else {
+              setSomarkError(data.detail || data.message || `解析失败: ${att.name}`)
+            }
+            throw new Error(data.detail || '解析失败')
+          }
+          parsedContent = data.markdown
+        }
       }
       setPendingAttachments(prev =>
         prev.map(a => a.id === att.id ? { ...a, status: 'done', parsedContent } : a)
@@ -1204,15 +1285,22 @@ const Agent = () => {
                       {msg.files && msg.files.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-2">
                           {msg.files.map((f, i) => (
-                            <div key={i} className="relative group">
-                              <img
-                                src={f.url}
-                                alt={f.name}
-                                className="w-20 h-20 rounded-lg object-cover border border-stone-200/50 cursor-pointer"
-                                onClick={() => setPreviewUrl(f.url)}
-                              />
-                              <span className="absolute bottom-0.5 left-0.5 text-[9px] bg-black/50 text-white px-1 rounded truncate max-w-[76px]">{f.name}</span>
-                            </div>
+                            f.type === 'image' ? (
+                              <div key={i} className="relative group">
+                                <img
+                                  src={f.url}
+                                  alt={f.name}
+                                  className="w-20 h-20 rounded-lg object-cover border border-stone-200/50 cursor-pointer"
+                                  onClick={() => setPreviewUrl(f.url)}
+                                />
+                                <span className="absolute bottom-0.5 left-0.5 text-[9px] bg-black/50 text-white px-1 rounded truncate max-w-[76px]">{f.name}</span>
+                              </div>
+                            ) : (
+                              <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 bg-blue-50 rounded-lg border border-blue-100 max-w-[200px]">
+                                <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                                <span className="text-xs text-blue-700 truncate">{f.name}</span>
+                              </div>
+                            )
                           ))}
                         </div>
                       )}
@@ -1596,6 +1684,31 @@ const Agent = () => {
             className="max-w-[90vw] max-h-[85vh] rounded-2xl shadow-2xl"
             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
           />
+        </div>
+      )}
+
+      {/* SoMark 错误弹窗 */}
+      {somarkError && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50" onClick={() => setSomarkError(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-800 mb-1">文件解析失败</h3>
+                <p className="text-sm text-gray-600">{somarkError}</p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setSomarkError(null)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+              >
+                知道了
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

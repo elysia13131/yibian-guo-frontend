@@ -351,8 +351,8 @@ export default function DocumentGraph() {
                     指向 ({outgoingEdges.length})
                   </label>
                   {outgoingEdges.length > 0 ? (
-                    <div className="space-y-1">
-                      {outgoingEdges.slice(0, 30).map(({ node, relation }) => (
+                    <div className="space-y-1 max-h-96 overflow-y-auto">
+                      {outgoingEdges.map(({ node, relation }) => (
                         <button
                           key={node.id}
                           onClick={() => setSelectedNode(node)}
@@ -373,8 +373,8 @@ export default function DocumentGraph() {
                     被指向 ({incomingEdges.length})
                   </label>
                   {incomingEdges.length > 0 ? (
-                    <div className="space-y-1">
-                      {incomingEdges.slice(0, 30).map(({ node, relation }) => (
+                    <div className="space-y-1 max-h-96 overflow-y-auto">
+                      {incomingEdges.map(({ node, relation }) => (
                         <button
                           key={node.id}
                           onClick={() => setSelectedNode(node)}

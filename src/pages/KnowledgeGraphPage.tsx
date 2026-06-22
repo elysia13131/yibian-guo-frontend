@@ -10,6 +10,8 @@ const LEVEL_META: Record<string, { label: string; color: string; bg: string }> =
   L3: { label: '簇',   color: 'text-amber-700', bg: 'bg-amber-100' },
 }
 
+const LEVEL_ORDER: Record<string, number> = { L1: 1, L2: 2, L3: 3 }
+
 export default function KnowledgeGraphPage() {
   const navigate = useNavigate()
   const [loadingOverlay, setLoadingOverlay] = useState(true)
@@ -44,7 +46,7 @@ export default function KnowledgeGraphPage() {
 
       // Stage 1: 全量跨文档节点数据（不限制级别，全局图谱）
       setLoadingStatus('加载节点...')
-      const allDocs = await api.get<any>('/api/v1/graph/search?q=&limit=1000')
+      const allDocs = await api.get<any>('/api/v1/graph/search?q=&limit=50000')
       const allItems = allDocs?.results || []
 
       const rawNodes: GraphNode[] = allItems
@@ -68,14 +70,13 @@ export default function KnowledgeGraphPage() {
           }
         })
 
-      // title 去重
+      // id 去重（同 id 保留高层级节点）
       const dedupMap = new Map<string, GraphNode>()
       const removedIds = new Set<string>()
       for (const node of rawNodes) {
-        if (dedupMap.has(node.title)) {
-          removedIds.add(node.id)
-        } else {
-          dedupMap.set(node.title, node)
+        const existing = dedupMap.get(node.id)
+        if (!existing || (LEVEL_ORDER[node.level] || 0) > (LEVEL_ORDER[existing.level] || 0)) {
+          dedupMap.set(node.id, node)
         }
       }
       const nodes = [...dedupMap.values()]
@@ -440,8 +441,8 @@ export default function KnowledgeGraphPage() {
                     指向 ({outgoingEdges.length})
                   </label>
                   {outgoingEdges.length > 0 ? (
-                    <div className="space-y-1">
-                      {outgoingEdges.slice(0, 30).map(({ node, relation }) => (
+                    <div className="space-y-1 max-h-96 overflow-y-auto">
+                      {outgoingEdges.map(({ node, relation }) => (
                         <button
                           key={node.id}
                           onClick={() => setSelectedNode(node)}
@@ -462,8 +463,8 @@ export default function KnowledgeGraphPage() {
                     被指向 ({incomingEdges.length})
                   </label>
                   {incomingEdges.length > 0 ? (
-                    <div className="space-y-1">
-                      {incomingEdges.slice(0, 30).map(({ node, relation }) => (
+                    <div className="space-y-1 max-h-96 overflow-y-auto">
+                      {incomingEdges.map(({ node, relation }) => (
                         <button
                           key={node.id}
                           onClick={() => setSelectedNode(node)}

@@ -396,7 +396,7 @@ export default function GraphCanvas({
         ctx.stroke()
       }
 
-      if (showLabel && (isHovered || z > 0.8)) {
+      if (showLabel && (isHovered || z > 0.8) && simNodes.length <= 500) {
         ctx.font = `${Math.max(11, 12 / z)}px sans-serif`
         ctx.textAlign = 'center'
         ctx.fillStyle = isDimmed && !isHighlighted
