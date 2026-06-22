@@ -56,7 +56,7 @@ export default function UpdatePrompt() {
   if (dismissed) return null
 
   if (state === 'completed') {
-    // APK 下载完成：保持一个轻量 DOM 不卸载，避免与系统安装器冲突
+    // APK 下载完成：引导用户安装
     if (updateInfo?.needsApkUpdate) {
       return (
         <div className="fixed bottom-20 right-4 bg-blue-500 text-white px-4 py-3 rounded-lg shadow-lg z-[100] min-w-[280px]">
@@ -67,7 +67,14 @@ export default function UpdatePrompt() {
         </div>
       )
     }
-    return null
+    // 热更新完成：页面已尝试重载，若未重载则提示用户手动刷新
+    return (
+      <div className="fixed bottom-20 right-4 bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg z-[100] min-w-[280px]">
+        <p className="font-medium">更新完成</p>
+        <p className="text-sm mt-1">若页面未自动刷新，请手动重启 APP</p>
+        <button onClick={() => setDismissed(true)} className="mt-2 text-xs underline">关闭</button>
+      </div>
+    )
   }
 
   if (state === 'error') {

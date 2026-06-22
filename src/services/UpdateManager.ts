@@ -84,7 +84,7 @@ class UpdateManager {
     // 始终以构建注入的版本为基准
     this.currentVersion = (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : null) || '0.0.0'
     this.currentVersionCode = (typeof __APP_VERSION_CODE__ !== 'undefined' ? __APP_VERSION_CODE__ : null) || 0
-    console.log('[Update] init build version:', this.currentVersion, 'build versionCode:', this.currentVersionCode)
+    console.log('[Update] init build version:', this.currentVersion, 'build versionCode:', this.currentVersionCode, 'isNative:', this.isNative)
 
     if (!this.isNative) return
 
