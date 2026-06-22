@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Search, X, Layers, RefreshCw, Loader2 } from 'lucide-react'
+import { ArrowLeft, Search, X, Layers, RefreshCw, Loader2, AlertTriangle } from 'lucide-react'
 import { api } from '../api'
 import GraphCanvas, { GraphNode, GraphData } from '../components/GraphCanvas'
 
@@ -23,6 +23,7 @@ export default function KnowledgeGraphPage() {
 
   const [allNodes, setAllNodes] = useState<GraphNode[]>([])
   const [allEdges, setAllEdges] = useState<GraphData['edges']>([])
+  const [resultTruncated, setResultTruncated] = useState(false)
 
   const [focusedNodeId] = useState<string | null>(null)
   const [buildingDocs, setBuildingDocs] = useState<number[]>([])
@@ -83,6 +84,7 @@ export default function KnowledgeGraphPage() {
       const allNodeIds = nodes.map(n => n.id)
 
       setAllNodes(nodes)
+      setResultTruncated(allItems.length >= 50000 || nodes.length >= 50000)
 
       // Stage 2: 批量查询边
       setLoadingStatus('加载关系...')
@@ -309,6 +311,12 @@ export default function KnowledgeGraphPage() {
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 relative">
+          {resultTruncated && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 shadow-sm flex items-center gap-2">
+              <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+              <span>知识图谱数量已超过 50000，仅显示部分结果（约 {allNodes.length} 个节点）</span>
+            </div>
+          )}
           <GraphCanvas
             data={{ nodes: allNodes, edges: allEdges }}
             onNodeClick={handleNodeClick}

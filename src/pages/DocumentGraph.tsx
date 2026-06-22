@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Layers, Search, X, Loader2 } from 'lucide-react'
+import { ArrowLeft, Layers, Search, X, Loader2, AlertTriangle } from 'lucide-react'
 import { api } from '../api'
 import { useDocument } from '../hooks/useDocuments'
 import GraphCanvas from '../components/GraphCanvas'
@@ -27,6 +27,7 @@ export default function DocumentGraph() {
 
   const [allNodes, setAllNodes] = useState<GraphNode[]>([])
   const [allEdges, setAllEdges] = useState<GraphData['edges']>([])
+  const [resultTruncated, setResultTruncated] = useState(false)
 
   useEffect(() => {
     if (!documentId) return
@@ -81,6 +82,7 @@ export default function DocumentGraph() {
           .filter((e: any) => !removedIds.has(e.source) && !removedIds.has(e.target))
 
         setAllEdges(edges)
+        setResultTruncated(!!l1Res.truncated)
 
         // 统计各级别数量
         const counts = { L1: 0, L2: 0, L3: 0 }
@@ -217,6 +219,12 @@ export default function DocumentGraph() {
 
       {/* 画布区域 */}
       <div className="flex-1 relative">
+        {resultTruncated && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 shadow-sm flex items-center gap-2">
+            <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+            <span>文档节点数较多，仅显示前约 {allNodes.length} 个节点</span>
+          </div>
+        )}
         {loading && allNodes.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
