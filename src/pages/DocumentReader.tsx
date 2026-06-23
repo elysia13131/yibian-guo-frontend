@@ -396,6 +396,11 @@ export default function DocumentReaderPage() {
             /<th/g,
             '<th style="border:1px solid #d1d5db;padding:8px 12px;text-align:left;font-weight:600;background-color:#f9fafb"'
           )
+          // 表格内的 markdown 图片语法 → img 标签
+          styledTable = styledTable.replace(
+            /!\[([^\]]*)\]\(([^)]+)\)/g,
+            '<img src="$2" alt="$1" style="max-width:100%;height:auto;border-radius:4px" />'
+          )
           styledTable = styledTable
             .replace(/\$\$([\s\S]*?)\$\$/g, (_, f) => {
               try { return katex.renderToString(f.trim(), { displayMode: true, throwOnError: false }) }
@@ -437,7 +442,7 @@ export default function DocumentReaderPage() {
                                 rowIdx === 0 ? 'font-semibold bg-gray-50 dark:bg-gray-700' : ''
                               }`}
                             >
-                              {cell ? renderLineWithMath(cell, `cell-${rowIdx}-${cellIdx}`) : '\u00A0'}
+                              {cell ? renderCellContent(cell, `cell-${rowIdx}-${cellIdx}`) : '\u00A0'}
                             </td>
                           ))}
                         </tr>
@@ -489,6 +494,41 @@ export default function DocumentReaderPage() {
     }
 
     return elements.length > 0 ? elements : [<span key={lineKey}>{line}</span>]
+  }
+
+  const renderCellContent = (cell: string, cellKey: string): JSX.Element[] => {
+    // 表格单元格可能包含 markdown 图片语法，先处理图片再处理数学公式
+    const mdImgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g
+    const hasImg = mdImgRegex.test(cell)
+    mdImgRegex.lastIndex = 0 // reset
+    if (!hasImg) {
+      return renderLineWithMath(cell, cellKey)
+    }
+    // 有图片：按 split(带捕获组) 逐段渲染
+    // segments 格式: [text0, alt0, src0, text1, alt1, src1, ...]
+    const segments = cell.split(mdImgRegex)
+    const elements: JSX.Element[] = []
+    for (let i = 0; i < segments.length; i++) {
+      if (segments[i]) {
+        elements.push(...renderLineWithMath(segments[i], `${cellKey}-seg-${i}`))
+      }
+      // i 为 text 段 (偶数)，且后面跟有 alt+src 时，取出图片
+      if (i % 2 === 0 && i + 2 < segments.length) {
+        const alt = segments[i + 1]
+        const src = segments[i + 2]
+        if (src) {
+          const imgSrc = src.startsWith('http') ? src : `${import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'}/${src}`
+          elements.push(
+            <img key={`${cellKey}-img-${i}`} src={imgSrc} alt={alt || ''}
+              className="max-w-full h-auto rounded my-1" style={{ maxHeight: '200px' }}
+              onError={(e) => { e.currentTarget.style.display = 'none' }}
+            />
+          )
+        }
+        i += 2 // 跳过 alt 和 src 段
+      }
+    }
+    return elements.length > 0 ? elements : [<span key={`${cellKey}-empty`}>{cell}</span>]
   }
 
   const renderInlineMath = (text: string, key: string): JSX.Element[] => {
