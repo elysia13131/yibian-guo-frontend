@@ -154,7 +154,8 @@ function extractCharacterMeta(sections: GameSection[]): { meta: CharacterMeta | 
   return { meta: null, storySections: sections }
 }
 
-function resolveUrl(url: string): string {
+function resolveUrl(url: string | undefined): string {
+  if (!url) return ''
   return url.startsWith('http') ? url : `${API_BASE}${url}`
 }
 

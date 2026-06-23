@@ -1,4 +1,4 @@
-import { Upload, BookOpen, TrendingUp, Clock, Award, ChevronRight, FileText, Eye, Search, BookMarked, BarChart, FlaskConical, Sparkles, GitBranch } from 'lucide-react'
+import { Upload, BookOpen, TrendingUp, Clock, Award, ChevronRight, FileText, Eye, Search, BookMarked, BarChart, FlaskConical, Sparkles, GitBranch, AlertCircle, RefreshCw } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
 import { motion, useInView, AnimatePresence } from 'motion/react'
@@ -70,7 +70,7 @@ const Home = () => {
   const [overview, setOverview] = useState<LearningOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [popularDocs, setPopularDocs] = useState<PopularDocument[]>([])
-  const { data: publicDocuments, isLoading: publicDocsLoading } = usePublicDocuments()
+  const { data: publicDocuments, isLoading: publicDocsLoading, isError: publicDocsError, refetch: refetchPublicDocs } = usePublicDocuments()
   const togglePublicMutation = useTogglePublicStatus()
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [modalAction, setModalAction] = useState('进行此操作')
@@ -434,18 +434,33 @@ const Home = () => {
               <motion.div
                 className="bg-white/80 backdrop-blur-sm rounded-2xl p-10 text-center border border-stone-100"
                 initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                viewport={{ once: true }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
               >
                 <div className="animate-spin w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full mx-auto mb-3" />
                 <p className="text-stone-400">加载公共文档库...</p>
+              </motion.div>
+            ) : publicDocsError ? (
+              <motion.div
+                className="bg-white/80 backdrop-blur-sm rounded-2xl p-10 text-center border border-stone-100"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <AlertCircle size={40} className="mx-auto text-amber-400 mb-3" />
+                <p className="text-stone-500 mb-3">加载失败，请检查网络后重试</p>
+                <button onClick={() => refetchPublicDocs()}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-xl hover:bg-amber-200 transition text-sm font-medium"
+                >
+                  <RefreshCw size={14} /> 重新加载
+                </button>
               </motion.div>
             ) : !publicDocuments || Object.keys(publicDocuments).length === 0 ? (
               <motion.div
                 className="bg-white/80 backdrop-blur-sm rounded-2xl p-10 text-center border border-stone-100"
                 initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                viewport={{ once: true }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
               >
                 <FileText size={40} className="mx-auto text-stone-300 mb-3" />
                 <p className="text-stone-500 mb-4">还没有公开文档</p>
@@ -464,8 +479,7 @@ const Home = () => {
             ) : (
               <motion.div className="space-y-5"
                 initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
+                animate="visible"
                 variants={{ visible: { transition: { staggerChildren: 0.1 } } }}
               >
                 {Object.entries(publicDocuments).map(([category, docs]) => (
@@ -486,9 +500,7 @@ const Home = () => {
                       {docs.map((doc, i) => (
                         <motion.div
                           key={doc.id}
-                          initial={{ opacity: 0, y: 15 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true }}
+                          variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}
                           transition={{ delay: i * 0.05, duration: 0.3 }}
                         >
                           <TiltCard>
