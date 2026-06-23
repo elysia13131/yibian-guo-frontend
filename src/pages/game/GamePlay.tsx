@@ -333,21 +333,39 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
 
   // 动态追踪对话框位置，让工具栏紧贴对话框顶部
   useEffect(() => {
-    const updatePosition = () => {
+    let observer: ResizeObserver | null = null
+    let attempts = 0
+    const maxAttempts = 20
+    const interval = 300
+
+    const setupObserver = () => {
       const dialog = document.querySelector<HTMLElement>('[data-element-type="dialog"]')
-      if (!dialog) return
-      const dialogRect = dialog.getBoundingClientRect()
-      const bottom = window.innerHeight - dialogRect.top + 8 // 8px 间距
-      setToolbarBottom(Math.max(0, bottom))
+      if (!dialog) {
+        if (attempts < maxAttempts) {
+          attempts++
+          setTimeout(setupObserver, interval)
+        }
+        return
+      }
+      const updatePosition = () => {
+        const d = document.querySelector<HTMLElement>('[data-element-type="dialog"]')
+        if (!d) return
+        const rect = d.getBoundingClientRect()
+        setToolbarBottom(window.innerHeight - rect.top + 8)
+      }
+      updatePosition()
+      observer = new ResizeObserver(updatePosition)
+      observer.observe(dialog)
     }
-    updatePosition()
-    const observer = new ResizeObserver(updatePosition)
-    const dialog = document.querySelector<HTMLElement>('[data-element-type="dialog"]')
-    if (dialog) observer.observe(dialog)
-    window.addEventListener('resize', updatePosition)
+
+    setupObserver()
+    window.addEventListener('resize', () => {
+      const d = document.querySelector<HTMLElement>('[data-element-type="dialog"]')
+      if (d) setToolbarBottom(window.innerHeight - d.getBoundingClientRect().top + 8)
+    })
     return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', updatePosition)
+      observer?.disconnect()
+      window.removeEventListener('resize', () => {})
     }
   }, [ended])
 
@@ -456,22 +474,32 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
         height: 100%;
       }
       .game-reader-wrapper .__narraleaf_content-player .bg-cover {
-        position: absolute !important;
+        position: fixed !important;
         inset: 0 !important;
+        z-index: 0 !important;
         background-size: cover !important;
         background-position: center !important;
         background-repeat: no-repeat !important;
       }
       .game-reader-wrapper .__narraleaf_content-player > div:first-child {
         aspect-ratio: unset !important;
-        max-width: 100% !important;
-        max-height: 100% !important;
+        max-width: 100vw !important;
+        max-height: 100vh !important;
+        max-height: 100dvh !important;
+        min-height: 100vh !important;
+        min-height: 100dvh !important;
+        min-width: 100vw !important;
         height: 100% !important;
         width: 100% !important;
       }
-      .game-reader-wrapper .__narraleaf_content-player {
+      .game-reader-wrapper .__narraleaf_content-player,
+      .game-reader-wrapper .game-reader-player,
+      .game-reader-wrapper .game-reader-player > div {
         width: 100% !important;
+        min-width: 100vw !important;
         height: 100% !important;
+        min-height: 100vh !important;
+        min-height: 100dvh !important;
       }
       .game-reader-wrapper [data-element-type="dialog"] {
         pointer-events: auto !important;

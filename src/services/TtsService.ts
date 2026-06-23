@@ -105,7 +105,20 @@ async function synthesizeDirect(
     throw new Error(`TTS API 错误 (${response.status}): ${errText}`)
   }
 
-  const blob = await response.blob()
+  const json = await response.json()
+  if (json.code && json.code !== 0 && json.code !== 200 && json.code !== 3000) {
+    const msg = json.message || json.msg || `错误码 ${json.code}`
+    throw new Error(`TTS 合成失败: ${msg}`)
+  }
+  const base64Data = json.data || json.audio || ''
+  if (!base64Data) throw new Error('TTS 响应无音频数据')
+
+  const binaryStr = atob(base64Data)
+  const bytes = new Uint8Array(binaryStr.length)
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i)
+  }
+  const blob = new Blob([bytes], { type: 'audio/mp3' })
   cacheBlob(blob, options.cacheKey)
   return blob
 }
