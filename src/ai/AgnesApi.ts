@@ -315,7 +315,7 @@ export class AgnesApi {
     // data URL → 上传
     const formData = new FormData()
     const blob = dataUrlToBlob(imageBase64, mime)
-    formData.append('image', blob, `img.${mime.split('/')[1] || 'png'}`)
+    formData.append('file', blob, `img.${mime.split('/')[1] || 'png'}`)
     const res = await fetch(`${API_BASE_URL}/api/v1/image/upload`, {
       method: 'POST',
       body: formData,
