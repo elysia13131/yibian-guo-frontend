@@ -1701,7 +1701,6 @@ export default function DocumentReaderPage() {
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                 }`}
               >
-                <MapIcon size={16} className="inline mr-1" />
                 思维导图
               </button>
               <Link
