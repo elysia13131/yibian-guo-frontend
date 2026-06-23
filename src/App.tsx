@@ -1,9 +1,11 @@
-import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
+import { Routes, Route, useLocation, Navigate, useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ApiKeyProvider } from './contexts/ApiKeyContext'
 import { AgentSessionProvider } from './contexts/AgentSessionContext'
+import { IntentHandler } from './plugins/IntentHandler'
 import Home from './pages/Home'
 import Analytics from './pages/Analytics'
 import Profile from './pages/Profile'
@@ -63,6 +65,7 @@ function LoginPromptWrapper({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { isAuthenticated, loading } = useAuth()
   const isAuthRoute = ['/auth', '/register', '/reset-password'].includes(location.pathname)
   const isFullPageRoute = ['/documents', '/documents/', '/document-graph', '/knowledge-graph', '/game', '/game/', '/experiment', '/agent', '/landing', '/test'].some(path =>
@@ -72,6 +75,20 @@ function AppContent() {
   if (isAuthRoute && isAuthenticated && !loading) {
     return <Navigate to="/" replace />
   }
+
+  // 检测其他应用分享的文件
+  useEffect(() => {
+    if (loading) return
+    IntentHandler.getPendingSharedFile().then(result => {
+      if (result.hasFile && result.path) {
+        console.log('[IntentHandler] 检测到分享文件:', result.name)
+        sessionStorage.setItem('sharedFilePath', result.path)
+        sessionStorage.setItem('sharedFileName', result.name || '')
+        sessionStorage.setItem('sharedFileMime', result.mimeType || '')
+        navigate('/documents?sharedFile=1', { replace: true })
+      }
+    }).catch(() => {})
+  }, [loading])
 
   return (
     <div className="min-h-screen bg-gray-50">

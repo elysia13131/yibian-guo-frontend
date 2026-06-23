@@ -14,6 +14,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 
@@ -91,9 +92,62 @@ public class IntentHandlerPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void readSharedFile(PluginCall call) {
+        if (pendingFilePath == null) {
+            call.reject("No pending shared file");
+            return;
+        }
+        try {
+            File f = new File(pendingFilePath);
+            byte[] bytes = new byte[(int) f.length()];
+            try (FileInputStream fis = new FileInputStream(f)) {
+                fis.read(bytes);
+            }
+            String base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+            JSObject ret = new JSObject();
+            ret.put("data", base64);
+            ret.put("name", pendingFileName != null ? pendingFileName : "shared_file");
+            ret.put("mimeType", pendingFileMime != null ? pendingFileMime : "application/octet-stream");
+            ret.put("size", f.length());
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to read shared file: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void clearPendingSharedFile(PluginCall call) {
         clear();
         call.resolve();
+    }
+
+    @PluginMethod
+    public void openFileExternally(PluginCall call) {
+        String filePath = call.getString("path");
+        String mimeType = call.getString("mimeType", "application/octet-stream");
+        if (filePath == null || filePath.isEmpty()) {
+            call.reject("No file path provided");
+            return;
+        }
+        try {
+            File file = new File(filePath);
+            if (!file.exists()) {
+                call.reject("File not found: " + filePath);
+                return;
+            }
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                getContext(),
+                getContext().getPackageName() + ".fileprovider",
+                file
+            );
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(uri, mimeType);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to open file: " + e.getMessage());
+        }
     }
 
     private static void clear() {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, FileText, AlertCircle, CheckCircle, Clock, RefreshCw, Trash2, ArrowLeft, Eye, EyeOff, Camera, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useDocuments, useUploadDocument, useDeleteDocument, useCategories, useTogglePublicStatus, useReparseSomark } from '../hooks/useDocuments'
@@ -7,6 +7,7 @@ import { analyticsApi } from '../api'
 import type { DocumentStatus } from '../types'
 import PageTransition from '../components/PageTransition'
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera'
+import { IntentHandler } from '../plugins/IntentHandler'
 
 interface UploadProgress {
     documentId: number
@@ -57,6 +58,7 @@ const fileTypeIcons: Record<string, string> = {
 
 export default function DocumentsPage() {
     const navigate = useNavigate()
+    const [searchParams, setSearchParams] = useSearchParams()
     const [showUpload, setShowUpload] = useState(false)
     const [uploadMode, setUploadMode] = useState<'file' | 'photo'>('file')
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -102,6 +104,45 @@ export default function DocumentsPage() {
   const progressIntervalsRef = useRef<Map<number, NodeJS.Timeout>>(new Map())
   // 存储 tempId 到真实 documentId 的映射
   const tempIdToRealIdRef = useRef<Map<number, number>>(new Map())
+
+  // 检测外部分享的文件，自动打开上传弹窗
+  useEffect(() => {
+    const isShared = searchParams.get('sharedFile')
+    if (isShared !== '1') return
+    
+    const handleSharedFile = async () => {
+      try {
+        // 先清理旧数据
+        setSelectedFile(null)
+        setTitle('')
+        
+        const result = await IntentHandler.readSharedFile()
+        if (!result.data) return
+        
+        // base64 → Uint8Array → File
+        const binaryStr = atob(result.data)
+        const bytes = new Uint8Array(binaryStr.length)
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i)
+        }
+        const file = new File([bytes], result.name, { type: result.mimeType })
+        setSelectedFile(file)
+        setShowUpload(true)
+        setUploadMode('file')
+        
+        // 清除 URL 参数避免重复触发
+        const newParams = new URLSearchParams(searchParams)
+        newParams.delete('sharedFile')
+        setSearchParams(newParams, { replace: true })
+        
+        // 清除插件中的暂存
+        IntentHandler.clearPendingSharedFile()
+      } catch (e) {
+        console.error('[Documents] 读取分享文件失败:', e)
+      }
+    }
+    handleSharedFile()
+  }, [searchParams])
 
   // 监听真实文档出现，自动移除对应的乐观文档
   useEffect(() => {
