@@ -407,8 +407,7 @@ const Home = () => {
           <motion.div
             className="mb-8"
             initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
             <SectionTitle
