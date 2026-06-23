@@ -18,6 +18,7 @@ export class MiniCPMApi {
       historyMessages?: { role: 'user' | 'assistant'; content: string }[]
       imagesData?: ArrayBuffer[]
       model?: string
+      enableTools?: boolean
     }
   ): Promise<string> {
     const messages: any[] = []
@@ -158,7 +159,7 @@ export class MiniCPMApi {
       body: JSON.stringify({
         messages,
         user_id: options?.userId || 0,
-        enable_tools: true,
+        enable_tools: options?.enableTools ?? true,
         temperature: options?.temperature ?? undefined,
         model: options?.model || undefined,
       }),

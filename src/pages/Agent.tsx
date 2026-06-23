@@ -18,6 +18,7 @@ import ThinkingBlock from '../components/ThinkingBlock'
 import BouncingDots from '../components/BouncingDots'
 import { visionEngine } from '../ai/VisionEngine'
 import { miniCPMApi } from '../ai/MiniCPMApi'
+import { agnesApi } from '../ai/AgnesApi'
 import type { FileArtifact } from '../components/ArtifactsPanel'
 import type { ChartImage } from '../components/ChartGrid'
 import { api } from '../api'
@@ -600,32 +601,25 @@ const Agent = () => {
           ? '你是灵枢（LingShu），一个知识渊博的 AI 学习助手。\n\n你的使命：\n- 以清晰的逻辑深入分析问题本质，逐步展开推理过程\n- 可以检索知识库和互联网来获取最新/专业知识\n- 给出准确、有依据的结论\n\n遇到需要核实或深入的问题，主动使用知识库搜索或网络搜索工具。'
           : '你是灵枢（LingShu），一个知识渊博且乐于助人的 AI 学习助手。\n回答问题简洁清晰、有逻辑。如需核实信息，可以搜索知识库或互联网。'
 
-        if (deepThink) {
-          const result = await miniCPMApi.chatWithTools(text, {
-            onToken,
-            onReasoning,
-          }, {
-            systemPrompt,
-            temperature: 0.3,
-            abortSignal: controller.signal,
-            historyMessages,
-            imagesData: attachments?.map(a => a.imageData),
-          })
-          fullContent = result.content
-          fullReasoning = result.reasoning
-        } else {
-          const result = await miniCPMApi.chatWithTools(text, {
-            onToken,
-          }, {
-            systemPrompt,
-            model: 'MiniCPM-V-4.6-Instruct',
-            temperature: 0.7,
-            abortSignal: controller.signal,
-            historyMessages,
-            imagesData: attachments?.map(a => a.imageData),
-          })
-          fullContent = result.content
-        }
+        const hasAttachments = attachments && attachments.length > 0
+        const imageInputs = hasAttachments ? attachments!.map(a => ({
+          base64: btoa(String.fromCharCode(...new Uint8Array(a.imageData))),
+          mime: 'image/png',
+        })) : undefined
+        const result = await agnesApi.chatStream(text, {
+          onToken,
+          onReasoning,
+        }, {
+          systemPrompt,
+          temperature: deepThink ? 0.3 : 0.7,
+          abortSignal: controller.signal,
+          historyMessages,
+          imagesData: imageInputs,
+          enableTools: !hasAttachments,
+          deepThink,
+        })
+        fullContent = result.content
+        fullReasoning = result.reasoning
       } else {
         await visionEngine.chat(text, onToken, {
           ...(deepThink ? {
@@ -1007,7 +1001,7 @@ const Agent = () => {
         const visionPrompt = '请详细描述这张图片的内容，包括画面中的主要元素、场景、文字信息等关键细节。'
         const modelMode = (localStorage.getItem('agentModelMode') || 'api') as 'api' | 'local'
         const result = modelMode === 'api'
-          ? await miniCPMApi.understandImage(att.file, undefined, visionPrompt)
+          ? await agnesApi.understandImage(att.file, visionPrompt)
           : await visionEngine.understandImage(att.file, undefined, visionPrompt)
         parsedContent = result.description
       } else {
