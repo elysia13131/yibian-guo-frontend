@@ -35,11 +35,12 @@ export function saveMemory(memory: MemorySnapshot): void {
 }
 
 export function updateRecentMessages(memory: MemorySnapshot, role: string, content: string): MemorySnapshot {
+  const recent = memory.working?.recentMessages || []
   const updated = {
     ...memory,
     working: {
       ...memory.working,
-      recentMessages: [...memory.working.recentMessages, { role, content }].slice(-40)
+      recentMessages: [...recent, { role, content }].slice(-40)
     }
   }
   return updated
