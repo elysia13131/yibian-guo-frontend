@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, type JSX } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, BookOpen, Menu, ArrowLeft, ChevronDown, ChevronRightIcon, Lightbulb, Sparkles, RefreshCw, Edit, Map as MapIcon, FileText, RefreshCw as RefreshIcon } from 'lucide-react'
 import SectionGraph from '../components/SectionGraph'
+import DocumentPreview from '../components/DocumentPreview'
 import { useDocument, useChapters, useChapter, useUpdateLastReadChapter } from '../hooks/useDocuments'
 import { api, analyticsApi, documentsApi } from '../api'
 import { Markmap } from 'markmap-view'
@@ -51,7 +52,7 @@ export default function DocumentReaderPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
-  const [viewMode, setViewMode] = useState<'chapter' | 'full'>('chapter')
+  const [viewMode, setViewMode] = useState<'chapter' | 'full' | 'preview'>('chapter')
   const [selectedChapterId, setSelectedChapterId] = useState<number | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
   const [reparsing, setReparsing] = useState(false)
@@ -1653,6 +1654,7 @@ export default function DocumentReaderPage() {
                 <button
                   onClick={() => {
                     setViewMode('chapter');
+                    setShowSidebar(true);
                     setShowMindmap(false);
                   }}
                   className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -1666,6 +1668,7 @@ export default function DocumentReaderPage() {
                 <button
                   onClick={() => {
                     setViewMode('full');
+                    setShowSidebar(true);
                     setShowMindmap(false);
                   }}
                   className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -1675,9 +1678,24 @@ export default function DocumentReaderPage() {
                   }`}
                 >
                   完整模式
-                </button>
-                <button
-                onClick={() => setShowMindmap(!showMindmap)}
+              </button>
+              <button
+                onClick={() => {
+                  setViewMode('preview');
+                  setShowSidebar(false);
+                  setShowMindmap(false);
+                }}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'preview'
+                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                <FileText size={16} className="inline mr-1" />
+                原文预览
+              </button>
+              <button
+                onClick={() => { setShowMindmap(!showMindmap); setShowSidebar(true) }}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   showMindmap
                     ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
@@ -1899,7 +1917,13 @@ export default function DocumentReaderPage() {
           )}
 
           <div className="flex-1 w-full min-w-0">
-            {showMindmap ? (
+            {viewMode === 'preview' ? (
+              <DocumentPreview
+                fileUrl={currentDocument?.file_path || `/uploads/${currentDocument?.filename}`}
+                fileName={currentDocument?.filename || currentDocument?.title || '文档'}
+                docId={String(documentId)}
+              />
+            ) : showMindmap ? (
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 w-full">
                 <div className="p-6 border-b dark:border-gray-700">
                   <div className="flex items-center justify-between">
@@ -2508,6 +2532,7 @@ function SplitChapterModal({ chapterId, chapters, onClose }: SplitChapterModalPr
           </div>
         </div>
       </div>
+
     </div>
   )
 }

@@ -749,6 +749,15 @@ const Agent = () => {
       const pending = pendingAttachmentsRef.current
       if (!text && pending.length === 0) return
 
+      // 检查是否有文件还在解析中
+      const processingAttachments = pending.filter(a => a.status === 'processing')
+      if (processingAttachments.length > 0) {
+        const names = processingAttachments.map(a => a.name).join('、')
+        setSomarkError(`还有 ${processingAttachments.length} 个文件正在解析（${names}），请稍后再发送`)
+        setTimeout(() => setSomarkError(null), 3000)
+        return
+      }
+
       setPendingAttachments([])
 
       // Collect parsed content from attachments
