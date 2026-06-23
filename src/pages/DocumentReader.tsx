@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type JSX } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, BookOpen, Menu, ArrowLeft, ChevronDown, ChevronRightIcon, Lightbulb, Sparkles, RefreshCw, Edit, Map as MapIcon, FileText, RefreshCw as RefreshIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, BookOpen, Menu, ArrowLeft, ChevronDown, ChevronRightIcon, Lightbulb, Sparkles, RefreshCw, Edit, Map as MapIcon, RefreshCw as RefreshIcon } from 'lucide-react'
 import SectionGraph from '../components/SectionGraph'
 import DocumentPreview from '../components/DocumentPreview'
 import { useDocument, useChapters, useChapter, useUpdateLastReadChapter } from '../hooks/useDocuments'
