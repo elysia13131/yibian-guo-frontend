@@ -359,13 +359,14 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
     }
 
     setupObserver()
-    window.addEventListener('resize', () => {
+    const handleResize = () => {
       const d = document.querySelector<HTMLElement>('[data-element-type="dialog"]')
       if (d) setToolbarBottom(window.innerHeight - d.getBoundingClientRect().top + 8)
-    })
+    }
+    window.addEventListener('resize', handleResize)
     return () => {
       observer?.disconnect()
-      window.removeEventListener('resize', () => {})
+      window.removeEventListener('resize', handleResize)
     }
   }, [ended])
 
