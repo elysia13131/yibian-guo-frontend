@@ -525,7 +525,7 @@ export default function GameHome() {
 
               <div>
                 <label className="block text-sm font-medium text-pink-600 mb-2">
-                  火山引擎 API Key
+                  火山引擎 TTS Key（语音合成）
                   <span className="text-pink-300 font-normal ml-1">（可选）</span>
                 </label>
                 <input

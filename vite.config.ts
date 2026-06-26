@@ -39,7 +39,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api/modelbest': {
-        target: 'https://api.modelbest.cn',
+        target: 'https://api.modelbest.co',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/modelbest/, '/v1'),
         configure: (proxy) => {

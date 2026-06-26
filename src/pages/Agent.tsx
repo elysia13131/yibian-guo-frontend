@@ -1009,9 +1009,12 @@ const Agent = () => {
       if (att.type === 'image') {
         const visionPrompt = '请详细描述这张图片的内容，包括画面中的主要元素、场景、文字信息等关键细节。'
         const modelMode = (localStorage.getItem('agentModelMode') || 'api') as 'api' | 'local'
-        const result = modelMode === 'api'
-          ? await agnesApi.understandImage(att.file, visionPrompt)
-          : await visionEngine.understandImage(att.file, undefined, visionPrompt)
+        // 协作模式：使用 MiniCPM 云 API 理解图片；普通模式：保持 Agnes 不变
+        const result = chatMode === 'collaboration'
+          ? await miniCPMApi.understandImage(att.file, visionPrompt)
+          : modelMode === 'api'
+            ? await agnesApi.understandImage(att.file, visionPrompt)
+            : await visionEngine.understandImage(att.file, undefined, visionPrompt)
         parsedContent = result.description
       } else {
         // 文档：先尝试前端直接读取内容

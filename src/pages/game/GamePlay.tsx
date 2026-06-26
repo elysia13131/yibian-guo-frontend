@@ -350,8 +350,11 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
       const updatePosition = () => {
         const d = document.querySelector<HTMLElement>('[data-element-type="dialog"]')
         if (!d) return
-        const rect = d.getBoundingClientRect()
-        setToolbarBottom(window.innerHeight - rect.top + 8)
+        const wrapper = document.querySelector<HTMLElement>('.game-reader-wrapper')
+        if (!wrapper) return
+        const wRect = wrapper.getBoundingClientRect()
+        const dRect = d.getBoundingClientRect()
+        setToolbarBottom(wRect.bottom - dRect.top + 8)
       }
       updatePosition()
       observer = new ResizeObserver(updatePosition)
@@ -361,7 +364,8 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
     setupObserver()
     const handleResize = () => {
       const d = document.querySelector<HTMLElement>('[data-element-type="dialog"]')
-      if (d) setToolbarBottom(window.innerHeight - d.getBoundingClientRect().top + 8)
+      const wrapper = document.querySelector<HTMLElement>('.game-reader-wrapper')
+      if (d && wrapper) setToolbarBottom(wrapper.getBoundingClientRect().bottom - d.getBoundingClientRect().top + 8)
     }
     window.addEventListener('resize', handleResize)
     return () => {
@@ -475,8 +479,10 @@ function ReadingPlayer({ docTitle, sections, backgroundUrl }: { docTitle: string
         height: 100%;
       }
       .game-reader-wrapper .__narraleaf_content-player .bg-cover {
-        position: fixed !important;
+        position: absolute !important;
         inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
         z-index: 0 !important;
         background-size: cover !important;
         background-position: center !important;

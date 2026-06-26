@@ -1,4 +1,4 @@
-const MINICPM_API_KEY = 'sk-pQ8L2zF3XmR5kY9wV4jB7hN1tC6vM0xG3aD5sH2bJ9lK4cZ8'
+const MINICPM_API_KEY = 'lis_sk_298cf78155f231c7_DkrDcNLHnK8dJRnfFrJCd4JGDbBLMkHrC3T-wLpvC9zy0BPemsyFuQ'
 const MINICPM_BASE_URL = '/api/modelbest'
 const MINICPM_MODEL = 'MiniCPM-V-4.6-Thinking'
 const MINICPM_MODEL_INSTRUCT = 'MiniCPM-V-4.6-Instruct'

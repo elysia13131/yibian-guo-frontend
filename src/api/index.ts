@@ -425,29 +425,23 @@ export interface TTSResponse {
 }
 
 export const ttsApi = {
-    async synthesize(text: string, speakerId: string, characterId?: number, encoding: string = 'mp3', speedRatio: number = 1.0): Promise<Blob> {
-        const token = localStorage.getItem('token')
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-        }
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`
-        }
-
-        const response = await fetch(
-            `${import.meta.env.VITE_API_BASE_URL || 'https://yibianguo.preview.aliyun-zeabur.cn'}/api/v1/tts/synthesize`,
-            {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
+    async synthesize(text: string, speakerId: string, _characterId?: number, _encoding?: string, _speedRatio?: number): Promise<Blob> {
+        const TTS_KEY = '242625ef-dc29-4136-9515-819d7f61242b'
+        const response = await fetch('https://openspeech.bytedance.com/api/v3/tts/unidirectional', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Api-Key': TTS_KEY,
+                'X-Api-Resource-Id': 'seed-icl-2.0',
+            },
+            body: JSON.stringify({
+                req_params: {
                     text,
-                    speaker_id: speakerId,
-                    character_id: characterId,
-                    encoding,
-                    speed_ratio: speedRatio,
-                }),
-            }
-        )
+                    speaker: speakerId,
+                    audio_params: { format: 'mp3', sample_rate: 24000 },
+                },
+            }),
+        })
         if (!response.ok) {
             throw new Error('语音合成失败')
         }
