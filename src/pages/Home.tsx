@@ -230,6 +230,7 @@ const Home = () => {
           initial="hidden"
           animate={heroInView ? "visible" : "hidden"}
           variants={{
+            hidden: {},
             visible: { transition: { staggerChildren: 0.06, delayChildren: 0.5 } }
           }}
         >
@@ -332,7 +333,7 @@ const Home = () => {
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
                   initial="hidden"
                   animate="visible"
-                  variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+                  variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.05 } } }}
                 >
                   {searchResults.map((doc, i) => (
                     <motion.div
@@ -479,7 +480,7 @@ const Home = () => {
               <motion.div className="space-y-5"
                 initial="hidden"
                 animate="visible"
-                variants={{ visible: { transition: { staggerChildren: 0.1 } } }}
+                variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}
               >
                 {Object.entries(publicDocuments).map(([category, docs]) => (
                   <motion.div
@@ -551,7 +552,7 @@ const Home = () => {
             className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"
             initial="hidden"
             animate={statsInView ? "visible" : "hidden"}
-            variants={{ visible: { transition: { staggerChildren: 0.15 } } }}
+            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.15 } } }}
           >
             {/* Stats */}
             <motion.div variants={fadeIn} custom={0}>
@@ -570,7 +571,7 @@ const Home = () => {
                     ))}
                   </div>
                 ) : (
-                  <motion.div className="space-y-5" variants={{ visible: { transition: { staggerChildren: 0.1 } } }}>
+                  <motion.div className="space-y-5" variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}>
                     {[
                       { icon: <Clock className="w-5 h-5" />, label: '学习时长', value: `${overview?.total_study_minutes || 0} 分钟`, change: overview?.study_minutes_change || 0, bg: 'from-amber-400/20 to-orange-400/20', color: 'text-amber-600' },
                       { icon: <TrendingUp className="w-5 h-5" />, label: '学习效率', value: `${overview?.study_efficiency || 0}%`, change: overview?.efficiency_change || 0, bg: 'from-emerald-400/20 to-teal-400/20', color: 'text-emerald-600' },
@@ -614,7 +615,7 @@ const Home = () => {
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-stone-100 shadow-lg shadow-stone-200/20">
                 <SectionTitle icon={<TrendingUp size={16} />} title="🔥 热门文档" />
                 {popularDocs.length > 0 ? (
-                  <motion.div className="space-y-3" variants={{ visible: { transition: { staggerChildren: 0.08 } } }}>
+                  <motion.div className="space-y-3" variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.08 } } }}>
                     {popularDocs.map((doc, index) => (
                       <motion.div
                         key={doc.id}
